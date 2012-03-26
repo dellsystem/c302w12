@@ -1,13 +1,13 @@
 \documentclass[11pt]{article}
-\usepackage{geometry}                % See geometry.pdf to learn the layout options. There are lots.
-\geometry{letterpaper}                   % ... or a4paper or a5paper or ... 
-%\geometry{landscape}                % Activate for for rotated page geometry
-\usepackage[parfill]{parskip}    % Activate to begin paragraphs with an empty line rather than an indent
+\usepackage{geometry} 
+\geometry{letterpaper}
+\usepackage[parfill]{parskip}    
 \usepackage{graphicx}
 \usepackage{amssymb}
 \usepackage{epstopdf}
 \usepackage{proof}
 \usepackage{amsmath}
+\usepackage{textcomp}
 \DeclareGraphicsRule{.tif}{png}{.png}{`convert #1 `dirname #1`/`basename #1 .tif`.png}
 
 \title{COMP 302: In Class Notes}
@@ -1163,21 +1163,21 @@ How do we instantiate type variables? Substitution!
 \emph{Two views:}
 \begin{enumerate}
     \item Are \emph{all} substitution instances of \verb~e~ well-typed? \\
-        If e has some type T and containts some type variables $\alpha_1, \ldots, \alpha_n$, then e has type \verb~[T1/'a1 ... Tn/'an] T~ for every $T_1, \ldots T_n$?
-    \item Does there exist some substitution instatnce such that e has type T?
+        If e has some type T and constraints some type variables $\alpha_1, \ldots, \alpha_n$, then e has type \verb~[T1/'a1 ... Tn/'an] T~ for every $T_1, \ldots T_n$?
+    \item Does there exist some substitution instance such that e has type T?
 \end{enumerate}
 
 For example: \verb~fn x => x+1~ has type $\beta$? Choose for $\beta =$ \verb~int->int~.
 
 \verb~fn x => x~ has type $\beta$? Choose for $\beta=$\verb~int->int~ or \verb~bool->bool~ or, most generally, \verb~'a->'a~.
 
-Will \verb~fn x => x+1~ have type \verb~'b->bool~? No. there is instantatiation for \verb~'b~.
+Will \verb~fn x => x+1~ have type \verb~'b->bool~? No. there is instantiation for \verb~'b~.
 
 \subsubsection{Type inference}
 \textbf{(1)} use typing rules to generate constraints. \textleftarrow will always succeed
 \textbf{(2)} solve constraints. \textleftarrow will sometimes fail
 
-What is a contstraint? For example, \verb~T=bool~.
+What is a constraint? For example, \verb~T=bool~.
 
 \begin{verbatim}
 Constraint C := T=T' | tt | C1 ^ C2
@@ -1262,7 +1262,7 @@ Constraints to solve:
 'a2 = 'a3 -> int (from last g(x))
 'a2 = 'a3 -> 'a4 (from first g(x))
 'a1 = 'a4 -> int
-'a2 = 'a3 -> 'a4, 'a2 = 'a3 -> int (intutitively)
+'a2 = 'a3 -> 'a4, 'a2 = 'a3 -> int (intuitively)
 'a1 = 'a4 -> int
 .: 'a4 = int, 'a1 = int -> int
 No constraint on 'a3
@@ -1282,7 +1282,7 @@ f: 'a1, x: 'a2 |- f x + x f
 
 'a1 = ('a1 -> int) -> int
 
-Does there exist an insubstantiation for 'a1 such that
+Does there exist an instantiation for 'a1 such that
     'a1 = ('a1 -> int) -> int ?
 There is no solution to make both sides equal.
 Reason: variable on the LHS occurs embedded on the RHS (circular).
@@ -1291,7 +1291,7 @@ Reason: variable on the LHS occurs embedded on the RHS (circular).
 \subsection{Unification Algorithm}
 Input: set of constraints
 
-Question: Does there exist an insubstatiation such that all constraints are true?
+Question: Does there exist an instantiation such that all constraints are true?
 
 \verb~C := tt | C1 ^ C2 | T = T'~
 
@@ -1335,10 +1335,10 @@ let
 in
     (y, x)
 end
-(* this will typecheck in SML, but would not type check in our definition so far,
+(* this will type-check in SML, but would not type check in our definition so far,
  * as we don't have a way to reuse a function with different types as we've 
  * given it a type. SML will abstract over polymorphic type variables, i.e.
- * it can reuse the type over multiple types by saying "forall 'a2:('a2->'a2)->'a2->'a"
+ * it can reuse the type over multiple types by saying "for all 'a2:('a2->'a2)->'a2->'a"
  *)
 \end{verbatim}
 
@@ -1400,7 +1400,7 @@ Our algorithm does not do what SML does -- it cannot truly reuse \verb~f~ in mul
 
 To make this function type check in our language, we'll need different copies of \verb~f~.
 
-\textbf{Observation:} \verb~if (fn x => x) true~ \verb~then (fn x => x) 5 then~ \verb~(fn x => x) 4~ will type check -- each ``sub-function" will be assigned its own relevant type. By writing this function three times, we will type check it three times, however we will have no contraints to carry over, so our language will type check this correctly.
+\textbf{Observation:} \verb~if (fn x => x) true~ \verb~then (fn x => x) 5 then~ \verb~(fn x => x) 4~ will type check -- each ``sub-function" will be assigned its own relevant type. By writing this function three times, we will type check it three times, however we will have no constraints to carry over, so our language will type check this correctly.
 
 \subsubsection{Modifying our typing rules}
 As a solution to this problem, we can modify our old rule, which is not suitable to handle polymorphic functions. Our new rule is as follows:
@@ -1415,14 +1415,14 @@ G |- let x=e1 in e2 : T
 Note: type checks $e_1$ multiple times -- not very efficient, but at least this will work for polymorphism. In practical languages, this is not what happens. Instead, we'll need to make the assumption $\forall \alpha -> \alpha$, so whenever we look up the type of \verb~f~, we get a ``fresh", unique copy of its type. 
 
 In ML:
-(generalize -- abstract over the free variables and quanitify over them, so we can reuse them as often as we'd like)
+(generalize -- abstract over the free variables and quantify over them, so we can reuse them as often as we'd like)
 \begin{verbatim}
 G|- e1 : S   G1 x generalize(S) |- e2 : T
 -----------------------------------------
 G |- let x=e1 in e2 : T
 \end{verbatim}
 
-In example 2, \verb~(forall 'a, 'a -> 'a) -> int~ -- full polymorphism. In ML, we have parametric polymporphism, where all quantification over type variables is at the outside. Some languages are slowly moving towards allowing full polymorphism.
+In example 2, \verb~(forall 'a, 'a -> 'a) -> int~ -- full polymorphism. In ML, we have parametric polymorphism, where all quantification over type variables is at the outside. Some languages are slowly moving towards allowing full polymorphism.
 
 \subsubsection{More examples}
 \begin{verbatim}
@@ -1463,40 +1463,40 @@ So far, we have type inference rules.
 
 \textbf{Hindley-Milner} (type inference) -- \emph{Goal:} infer the most general type of an expression without declaring any types.
 
-\textbf{Disadantages of not writing type annotations:}
+\textbf{Disadvantages of not writing type annotations:}
 \begin{itemize}
     \item Gives better error messages (programmer communicates his or her intent)
     \item High-grade (high-quality) documentation -- does not get out of sync with the code
     \item I can refuse types to force programs to be used in a specific way
-    \item Hindley-Milner type inference does not scale to richer types such as subtyping, full polymorphism, and dependent types. 
+    \item Hindley-Milner type inference does not scale to richer types such as sub-typing, full polymorphism, and dependent types. 
     \item Hindley-Milner type inference is complicated and difficult to implement (unification is needed).
 \end{itemize}
 
-Basic idea behind bi-directional type checking -- instead of infering a type:
+Basic idea behind bi-directional type checking -- instead of inferring a type:
     \[
-        \Gamma \vbar e \Rightarrow \tau
+        \Gamma \vdash e \Rightarrow \tau
     \]
-$\forall e$ where $\tau$ is the output, we'll use two judgements (functions), ``check" and ``synthesize". First, check $\Gamma \vbar e \Leftarrow \tau$ for inputs $\Gamma, e, \tau$ (check that expression $e$ has type $\tau$ under the assumptions $\Gamma$). Then, synthesize $\Gamma \vbar e \Rightarrow \tau$ (synthesize a type $\tau$ for expression $e$ under the assumptions $\Gamma$ for \emph{some} $e$). Synthesize basically means infer.
+$\forall e$ where $\tau$ is the output, we'll use two judgements (functions), ``check" and ``synthesize". First, check $\Gamma \vdash e \Leftarrow \tau$ for inputs $\Gamma, e, \tau$ (check that expression $e$ has type $\tau$ under the assumptions $\Gamma$). Then, synthesize $\Gamma \vdash e \Rightarrow \tau$ (synthesize a type $\tau$ for expression $e$ under the assumptions $\Gamma$ for \emph{some} $e$). Synthesize basically means infer.
 
 This algorithm is based on two observations. First, we can't use information that we don't have. Second, we should try to use information that we do have. 
 
 Type variables:
 \[
-    \infer{\Gamma_i x : \tau \vbar x => \tau}{}
+    \infer{\Gamma_i x : \tau \vdash x \Rightarrow \tau}{}
 \]
 
 Functions
 \[
-    \infer{\Gamma \vbar \verb~fn x => e~ \Rightarrow \tau_1 \rightarrow \tau_2}{
-        \tau_i x : \tau_1 \vbar e \Leftarrow \tau_2
+    \infer{\Gamma \vdash \verb~fn x => e~ \Rightarrow \tau_1 \rightarrow \tau_2}{
+        \tau_i x : \tau_1 \vdash e \Leftarrow \tau_2
     }
 \]
 
 \[
-    \infer{\Gamma \vbar e_1 e_2}{
-        \Gamma \vbar e_1 \Rightarrow \tau_2 \rightarrow \tau
+    \infer{\Gamma \vdash e_1 e_2}{
+        \Gamma \vdash e_1 \Rightarrow \tau_2 \rightarrow \tau
         &
-        \Gamma \vbar e_2 \Leftarrow \tau_2
+        \Gamma \vdash e_2 \Leftarrow \tau_2
     }
 \]
 
@@ -1511,8 +1511,8 @@ twice: (int -> int) -> int -> int)
 
 Conversion:
 \[
-    \infer{\Gamma \vbar e \Leftarrow \tau}{
-        \Gamma \vbar e \Rightarrow \tau^{\prime}
+    \infer{\Gamma \vdash e \Leftarrow \tau}{
+        \Gamma \vdash e \Rightarrow \tau^{\prime}
         &
         \tau^{\prime} = \tau
     }
@@ -1520,8 +1520,8 @@ Conversion:
 
 Example:
 \[
-    \infer[by conversion]{\vbar 3 \Leftarrow \verb~int~}{
-        \vbar 3 \Rightarrow \verb~int~
+    \infer[by conversion]{\vdash 3 \Leftarrow \verb~int~}{
+        \vdash 3 \Rightarrow \verb~int~
         &
         \verb~int = int~
     }
