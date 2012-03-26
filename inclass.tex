@@ -1,0 +1,1530 @@
+\documentclass[11pt]{article}
+\usepackage{geometry}                % See geometry.pdf to learn the layout options. There are lots.
+\geometry{letterpaper}                   % ... or a4paper or a5paper or ... 
+%\geometry{landscape}                % Activate for for rotated page geometry
+\usepackage[parfill]{parskip}    % Activate to begin paragraphs with an empty line rather than an indent
+\usepackage{graphicx}
+\usepackage{amssymb}
+\usepackage{epstopdf}
+\usepackage{proof}
+\usepackage{amsmath}
+\DeclareGraphicsRule{.tif}{png}{.png}{`convert #1 `dirname #1`/`basename #1 .tif`.png}
+
+\title{COMP 302: In Class Notes}
+\author{Ryan Ordille}
+
+\begin{document}
+\maketitle
+
+
+\section{03 February}
+% Continuations
+\subsection*{Regular Expression Matching}
+
+Typical patterns:
+\begin{itemize}
+	\item Singleton: matching a specific character
+	\item Alternation: choice between two patterns
+	\item Concatenation: succession of patterns
+	\item Iteration: repeat a certain pattern (indefinite)
+\end{itemize}
+
+Regular expressions;
+\begin{itemize}
+	\item 0 and 1 are regular expressions.
+	\item If $a \in \Sigma$ where $\Sigma$ is an alphabet, then $a$ is a regular expression.
+	\item If $r_1$ and $r_2$ are regular expressions, then $r_1 + r_2$ (choice) and $r_{1}r_{2}$ (concatenation) are regular expressions.
+	\item If r is a regular expression, then $r^*$ is a regular expression (repetition).
+\end{itemize}
+
+Examples;
+\begin{itemize}
+	\item \verb~a(p*)l(e+y)~ matches against ``apple", ``apply", ``ale"
+	\item \verb~g(1+r)(e+a)y~ matches against ``grey", ``gray", ``gey", ``gay" (\verb~1~ means you can either have something there or not)
+	\item \verb~g(1+o)*gle~ matches ``google", ``ggle"
+\end{itemize}
+
+Our goal is to implement a regex matcher in SML.
+
+Regular expression algorithm:
+\begin{verbatim}
+s matches 1
+  iff s is empty
+s matches a
+  iff s = a
+s matches r1+r2
+  iff either s matches r1
+          or s matches r2
+s matches r1r2
+  iff s = s1s2 and s1 matches r1
+               and s2 matches r2
+s matches r*
+  iff either s is empty
+          or s = s1s2 where s1 matches r
+		                and s2 matches r*
+\end{verbatim}
+
+Remember that continuations tell us what to do once an initial segment of the input \verb~char list~ has been matched.
+
+In SML, using continuations:
+\begin{verbatim}
+datatype regexp = Zero | One | Char of char | Plus of regexp * regexp
+                | Times of regexp*regexp | Star of regexp
+
+fun accept r s = 
+
+(* acc r s cont = bool *)
+(* acc: regexp -> char list -> (char list -> bool) -> bool *)
+(* ex: a(p*)l(e+y) on [a,p,p,l,e] *)
+fun acc (Char c) [] cont = false
+  | acc (Char c) (c1::s) cont = 
+        c = c1 andalso (cont s)
+  | acc (Times (r1,r2)) s cont =
+        acc r1 s (fn s2 => acc r2 s2 cont)
+  | acc (Plus (r1,r2) s cont =
+        acc r1 s cont orelse acc r2 s cont
+  | acc One s cont = cont s
+  | acc (Star r) s cont = 
+        (* remove (1*) case - s must shrink *)
+        (cont s) orelse
+		      acc r s (fn s' => not (s = s') orelse 
+			                        acc (Star r) s' cont)
+
+\end{verbatim}
+
+\section{6 February}
+\subsection{Exceptions}
+
+We use exceptions to quit out from the runtime stack. We have already seen some built-in exceptions - for example, SML will throw a \verb~Div~ exception if you try to divide by zero (like \verb~3 div 0~). Exceptions like this are used to abort a program safely whenever invalid input is given.
+
+\begin{verbatim}
+(* define the exception *)
+exception Error of String;
+
+fun fact n =
+    let fun fact' n =
+        if n = 0 then 1
+        else n * fact'(n-1)
+    in
+        if n < 0 then raise Error "Invalid Input"
+        else fact' n
+    end;
+
+(* non-exhaustive warning *)
+fun head (h::_) = h;
+(* uncaught exception Match *)
+head []; 
+\end{verbatim}
+
+Sometimes we want to handle exceptions:
+
+\begin{verbatim}
+(* runFact: int -> unit *)
+fun runFact n =
+    let val r = fact n
+    in print ("Factorial of " ^ Int.toString n ^ " is " ^ "Int.toString r)
+    end
+    handle Error msg => print ("Error: " ^ msg)
+\end{verbatim}
+
+To sequentialize expressions, use the \verb~;~ operator. \verb~exp1;exp2~ first executes \verb~exp1~ then executes \verb~exp2~. This is equivalent to \verb~(fn x => exp2) exp1~. This will be expanded upon in the next lecture.
+
+We can pattern match on error codes:
+
+\begin{verbatim}
+(* define the exception *)
+exception Error of int;
+
+fun fact n =
+    let fun fact' n =
+	        if n = 0 then 1
+    else n * fact'(n-1)
+    in
+        if n < 0 then raise Error 00
+        else fact' n
+    end;
+
+fun runFact n =
+    let val r = fact n
+    in 
+       print ("Factorial of " ^ Int.toString n ^ " is " ^ "Int.toString r)
+    end
+    handle Error 00 => print ("invalid input")
+         | Error 11 => print ("blah")
+         | Error _ => print ("Something else")
+\end{verbatim}
+
+Exceptions cannot be polymorphic, e.g. it cannot be of type \verb~'a list~ but can be of type \verb~int list~.
+
+Exceptions are usually pretty powerful in managing runtime stacks, but usually continuations are more powerful.
+
+\begin{verbatim}
+(* first arg: list of coins, second: what we want to get change for *)
+change [50,25,10,5,2,1] 43;
+(* result:  [25,10,5,2,1] *)
+
+exception Change 
+(* change: int list -> int -> int list *)
+
+fun change _ 0 = []
+  | change [] amt = raise Change
+  | change (coin::coins) amt = 
+           if coin > amt then change coins amt  
+           (*ignore this coin, look at other available coins*)
+           else cont change (coin::coins) (amt - coin) 
+           (*could raise Change exception in following recursive steps *)
+           handle Change => change coins amt
+
+\end{verbatim}
+
+There are some situations where we cannot give change at all, but \verb~change~ does not handle these situations. Below, we handle this situation - \verb~change~ might not be able to do anything but raise \verb~Change~, so this must be caught.
+
+\begin{verbatim}
+fun change_top coins amt =
+    let val r = change coins amt
+    in print ("Change:" ^ ListToString r)
+    end
+    handle Change => print "Sorry, can't give change."
+\end{verbatim}
+
+\begin{verbatim}
+change [5,2] 8
+=>* if 5>8 then ... else (5::change[5,2] 3 handle Change change [2] 8)
+
+change [2] 3 
+=>* 2::(change [2] 1 handle Change change [] 1)
+
+change [2] 1 => change [] 1 => raise Change
+(* goes to handle Change change [] 1 *)
+(* then goes to handle Change change [2] 8, which succeeds *)
+\end{verbatim}
+
+\section{8 February}
+\subsection{References (State)}
+
+Recall the binding/scope rules from the beginning of the class:
+\begin{verbatim}
+let 
+    val pi = 3.14
+    val area = fn r => pi * r * r
+	val a2 = area 2.0 (*a2 = 12.56 *)
+	val pi = 6.0
+in
+    area (2.0) (* a2 = 12.56 *)
+end;
+\end{verbatim}
+
+So far, we have only seen bindings like the one above. For bindings, remember we have a variable name bound to some value.
+Today we will look at references, which are a form of mutable storage. References allow us to to imperative programming.
+
+Commands:
+\begin{itemize}
+	\item Initialize a cell in memory \\
+			\verb~val r : int ref = ref 0~ where \verb~r~ is the name of the cell and \verb~0~ is the content of the cell \\
+			\verb~val s : int ref = ref 0~ where \verb~s~ and \verb~r~ do not point to the same cell in memory
+	\item Read what is stored in a cell \\
+			\verb~val x = !r~ will read from location \verb~r~ the value \verb~0~ \\
+			\verb~r : int ref~ and \verb~!r : int~
+	\item Write some value into a cell (i.e update the content) \\
+			\verb~r := 5 + 3~ where \verb~r : int ref~ and \verb~5+3 : int~ \\
+			Previous content of cell \verb~r~ is erased when we store \verb~8~. \\
+		    Evaluating \verb~r:=3~ returns \verb~unit~ and as an effect updates the content of the cell with \verb~3~.
+\end{itemize}
+
+\verb~val x = !s + !r~ binds \verb~x~ to \verb~3~.
+
+\verb~val t = r~ essentially makes two names for the same cell in memory. Calling \verb~val y = !t~ binds \verb~y~ to the value of \verb~r~. This is called \emph{aliasing}.
+
+We can rewrite our beginning function:
+\begin{verbatim}
+let
+   val pi = ref 3.14
+   val area = fn r => !pi * r * r
+   val a2 = area 2.0 (* a2 = 12.56 *)
+   val _ = (pi := 6.0)
+in
+   area (2.0) (* 24.00*)
+end
+\end{verbatim}
+
+Now we can program mutable data structures like Linked Lists:
+\begin{verbatim}
+datatype 'a rlist = Empty | RCons of 'a * ('a rlist) ref;
+val l1 = ref (RCons(4, ref Empty));
+\end{verbatim}
+For \verb~l1~, we now have a value \verb~4~ with a reference to some place in memory with an \verb~Empty~ list.
+\begin{verbatim}
+val l2 = ref (RCons(5,l1));
+\end{verbatim}
+For \verb~l2~ we have a value \verb~5~ with a reference to \verb~l1~ defined above.
+\begin{verbatim}
+l1 := !l2;
+\end{verbatim}
+The above will remove the value of \verb~l1~, change it to \verb~5~ (\verb~l2~'s value) and create a reference back to this element. Here, we've created a circular list.
+\begin{verbatim}
+type 'a reflist = ('a rlist) ref;
+(* rapp: 'a reflist * 'a reflist -> unit *)
+(* returns unit as all we're doing is updating space in memory *)
+fun rapp (r1 as ref Empty, r2) = r1 := !r2
+  | rapp (ref (RCons (x,t)), r2) = rapp t r2
+\end{verbatim}
+Now we can check this with some examples:
+\begin{verbatim}
+val rlist1 = ref (RCons(1,ref Empty))
+val rlist2 = ref (RCons(2,ref Empty))
+rapp rlist1 rlist2
+\end{verbatim}
+
+
+\section{10 February}
+\subsection{References and the environment diagram}
+\subsubsection{References for modelling closures and objects}
+\begin{verbatim}
+local
+   val counter = ref 0
+in
+   (* tick: unit -> unit *)
+   fun tick () = counter := !counter + 1
+   (* reset: unit -> unit *)
+   fun reset () = counter := 0
+   (* read: unit -> int *)
+   fun read () = !counter
+end
+\end{verbatim}
+
+We can use this to create a counter program:
+
+\begin{verbatim}
+fun newCounter () =
+    let
+	   val counter = ref 0
+	   fun tick () = counter := !counter + 1
+	   fun reset () = counter := 0
+	   fun read () = !counter
+    in
+	   {tick = tick; reset = reset; read = read}
+	end
+
+val c1 = newCounter (); 
+val c2 = newCounter ();
+
+#tick c1 (); (* increments c1's counter *)
+#tick c2 ();
+#tick c1 ();
+#read c1 (); (* returns 2 *)
+#read c2 (); (* returns 1 *)
+\end{verbatim}
+
+In essence, we've created an object - every time we create a new counter, we create an instance of the object. We can now program in the object-oriented paradigm using ML (although the syntax isn't quite as built for OOP).
+
+\subsubsection{The Environment Diagram}
+
+\verb~let val x = 5+3 in x+7 end:~ will replace \verb~x~ by \verb~8~ then compute \verb~8+7~.
+
+So far, evaluation is driven by substitution. We substitute the value of \verb~x~ into the body. Unfortunately, the substitution model fails when we have references because substitutions cannot capture global effects.
+
+We have three different kinds of bindings we'd like to track using the environment diagram. A binding is an association between a variable and a value.
+\begin{enumerate}
+	\item \verb~val x = 3+2~ creates a ``box" with the variable name \verb~x~ and its value \verb~5~.
+	\item \verb~val x = ref (8+2)~ creates a box with the variable name and a location pointing to another box with the value \verb~10~.
+	\item \verb~val f = fn x => x + 3~ creates a box with the function name and a location pointing to a box with the input and the function body, where this box points back to the original box. \\
+		\verb~val f = let val y = 8+2 in fn y => y + x end~ adds another box (an extra step) with the local body.
+\end{enumerate}
+
+\section{13 February}
+\subsection{Lazy Evaluation}
+
+So far, we've had an \emph{eager evaluation} strategy. For example, \verb~let x = e1 in e2 end~ will evaluate \verb~e1~ to some value \verb~v1~ and bind \verb~x~ to the value \verb~v1~, then evaluate \verb~e2~. This is also known as a \emph{call-by-value} strategy. Why should we evaluate \verb~e1~ if we never use it at all.
+
+This is especially relevant with ``harder" computations.
+
+\begin{verbatim}
+let val y = horribleComp(522)
+in 3*2 end
+\end{verbatim}
+
+With the call-by-value strategy, we always compute \verb~horribleComp(322)~, even if we never use it.
+
+We also have the \emph{call-by-name} strategy. In the original example, it will bind \verb~x~ to the expression \verb~e1~, then evaluate \verb~e2~. However, if we use \verb~x~ multiple times in \verb~e2~, we are evaluating \verb~e1~ multiple times.
+
+There's a ``best of both worlds" strategy we can also use -- \emph{call-by-need}. With this strategy in the original example, it will bind \verb~x~ to the expression \verb~e1~, then evaluate \verb~e2~, but memorize the result of evaluating \verb~e1~.
+
+Lazy evaluation is not only useful for saving computation time, but it also useful for evaluating infinite data structures. A stream of numbers online or interactive input/output from users would not be possible to deal with without infinite data structures.
+
+Remember that continuations delay computation within functions. We can wrap functions around things we wish to delay.
+
+\begin{verbatim}
+datatype 'a susp = Susp of (unit -> 'a)
+
+(* takes in a continuation and wraps it in a suspension to delay computation *)
+(* delay: (unit -> 'a) -> 'a susp *)
+fun delay c = Susp c
+(* forces computation of inner function *)
+fun force (Susp c) = c ()
+\end{verbatim}
+
+Now we can use lazy evaluation with the \verb~horribleComp~ example.
+
+\begin{verbatim}
+(* original *)
+let val x = horribleCom(522)
+in x+x end
+
+(* call-by-name model *)
+let val x = Susp(fun () => horribleComp(522))
+in force x + force x end
+
+(* call-by-need*)
+val memo = ref None
+val x = Susp (fun () => case memo of None =>
+    let val y = horribleComp(522) in memo := (*MISSED*) end
+	| Some y => y
+
+(* infinite stream of 'a *)
+datatype 'a stream' = Cons of 'a * 'a stream
+withtype 'a stream = ('a stream') susp
+(* stream' shows the first element, hides the rest, while stream hides all *)
+
+(* create an infinite stream of, say, 1's *)
+fun ones () = Susp (fun () => Cons (1, ones ()))
+val o = ones() (* returns a Susp of a function *)
+
+(* take: int -> 'a stream -> 'a list
+   take': int -> 'a stream' -> 'a list
+*)
+fun take 0 s = []
+  | take n s = take' n (force s)
+and take' 0 s' = []
+  | take' n (Cons(x,s)) = x::(take (n-1) s)
+
+val l = take 5 (ones ()) (*returns [1,1,1,1,1]*)
+
+(* numsFrom: int -> int stream *)
+fun numsFrom n = Susp(fn () => Cons(n, numsFrom (n-1))
+
+take 5 (numsFrom 0); (* returns [0,1,2,3,4] *)
+\end{verbatim}
+
+We can compute a stream of Finonnaci numbers:
+\begin{verbatim}
+val fibStream =
+    let
+        fun fib a b = Cons(a, Susp(fn () => fib b, (a+b)))
+    in
+        Susp(fn () => fib 0 1)
+    end
+
+take 4 fibStream; (* [0,1,1,2] *)
+\end{verbatim}
+
+\section{15 February}
+\subsection{Lazy programming continued}
+
+Recall from last class:
+
+\begin{verbatim}
+datatype 'a susp = Susp of (unit -> 'a)
+datatype 'a stream' = Cons of 'a * 'a stream
+withtype 'a stream = ('a stream') susp
+\end{verbatim}
+
+Last class we saw how to create infinite streams of real numbers, natural numbers, etc..
+
+\begin{verbatim}
+(* shd: 'a stream -> 'a *)
+fun shd (Susp s) = shd' (s ()) 
+(* shd': 'a stream' -> 'a *)
+and shd' (Cons (h,s)) = h
+\end{verbatim}
+
+The first line is equivalent to \verb~fun shd s = shd' (force s)~.
+
+\begin{verbatim}
+(* ltail: 'a stream -> 'a stream *)
+fun ltail s = ltail' 
+(* ltail': 'a stream' -> 'a stream *)
+and ltail' (Cons (h,s)) = s
+
+(* smap: ('a -> 'b) -> 'a stream -> 'b stream *)
+(* mapStr: 'a stream -> 'b stream *)
+(* mapStr': 'a stream' -> 'b stream *)
+fun smap f s =
+let fun mapStr s = mapStr' (force s)
+    and mapStr' (Cons (x, xs)) = Cons(f x, Susp (fn () => mapStr xs))
+in mapStr s
+end
+\end{verbatim}
+
+\begin{verbatim}
+(* addStreams: int stream * int stream -> int stream *)
+fun addStreams (s1, s2) = addStreams' (force s1, force s2)
+(* addStreams': int stream' * int stream' -> int stream *)
+and addStreams' (Cons (x,xs), Cons (y,ys)) = Susp(fn () => Cons(x+y, addStreams (xs,ys)))
+
+(* zipStreams: 'a stream * 'a stream -> 'a stream *)
+fun zipStreams (s1, s2) = zipStream' (force s1, s2)
+(* zipStreams': 'a stream' * ['a stream] -> 'a stream *)
+and zipStreams' (Cons (x,xs), s2) =
+    Susp(fn () => Cons (x, zipStreams (s2, xs)))
+\end{verbatim}
+
+We don't need to force both streams for the \verb~zipStreams~ function to save work.
+
+\begin{verbatim}
+(* filter: ('a->bool)*'a stream -> 'a stream *)
+fun filter (p, s) = filter' (p, foce s)
+(* filter': ('a -> bool) * 'a stream' -> 'a stream *)
+and filter' (p, (Cons(x,xs))) = 
+    if p x then
+	   Susp(fn () => Cons (x, filter (p,xs)))
+    else
+       filter (p, xs)
+\end{verbatim}
+
+%%
+\section{27 February}
+\subsection{Midterm Review}
+Midterm exam -- Wednesday, 29 February in Leacock 26.
+
+Crib sheet allowed -- one page, back and front.
+
+Three questions -- proofs, programs, covering all material up until the break.
+
+No continuation, lazy evaluation, exceptions, or environment diagram questions.
+
+\subsubsection{Example 1: Proofs}
+\begin{verbatim}
+fun sum [] = 0
+  | sum (h::t) = h + sum t
+
+fun sum_tl [] acc = acc
+  | sum_tl (h::t) acc = sum_tl t (h + acc)
+\end{verbatim}
+
+For the above code, we wish to prove that \verb~sum l = sum_tl l 0~. We can do this using structural induction on \verb~l~. 
+
+The base case is trivial. We'll start with the step case where \verb~l = h::t~. Our induction hypothesis states that \verb~sum t = sum_tl t 0~. We'll need to show that \verb~sum (h::t) = sum_tl (h::t) 0~.
+
+\begin{verbatim}
+sum (h::t)
+=> h + sum t
+
+sum_tl (h::t) 0
+=> sum_tl t (h+0)
+=> sum_tl t h
+\end{verbatim}
+
+This attempt will not work, since we want to use the IH. We'll need to generalize the theorem:
+
+\textbf{Lemma:} For all lists \verb~t~ and for all accumulators \verb~acc~, \verb~sum t + acc = sum_tl t acc~ is true. We'll also need to prove this using structural induction on \verb~t~.
+
+Base case: where \verb~t = []~:
+\begin{verbatim}
+sum [] + acc
+=> 0 + acc
+=> acc
+
+sum_tl [] acc
+=> acc
+\end{verbatim}
+
+Both sides are equal, so our base case checks out.
+
+Step case: where \verb~t = h::t'~:
+
+\begin{verbatim}
+IH: for all acc', sum t' + acc' = sum_tl t' acc'
+
+sum (h::t') + acc'
+=> (h + sum t') + acc' [by program]
+=>* sum t' + (h + acc') [by associativity and commutativity]
+
+sum_tl (h::t') acc'
+=> sum_tl t' (h + acc') [by program]
+\end{verbatim}
+
+By the induction hypothesis using \verb~(h + acc)~ for \verb~acc'~, we know these are equal.
+
+Now that we've proved the lemma, we need to prove the main theorem.
+
+By the lemma, using \verb~l~ for \verb~t~ and \verb~0~ for \verb~acc~:
+\begin{verbatim}
+sum l + 0
+=> sum l
+\end{verbatim}
+
+\subsubsection{Example 2: Rewriting library functions}
+
+We have a library function:
+\begin{verbatim}
+tabulate f n returns  [f0, f1, ..., fn]
+\end{verbatim}
+
+We want to write this in a tail-recursive manner.
+\begin{verbatim}
+fun tabulate f 0 acc = (f 0)::acc
+  | tabulate f n acc = tabulate f (n-1) ((f n)::acc)
+\end{verbatim}
+
+Another example:
+\begin{verbatim}
+foldr f b [x1, ..., xn] returns f (x1, ..., f (xn, b))
+\end{verbatim}
+
+Now, we want to write a list append function using \verb~foldr~.
+\begin{verbatim}
+fun append l1 f2 = 
+    foldr (fn (x,r) => x::r) l2 l1
+\end{verbatim}
+
+We can also write a \verb~filter~ function:
+\begin{verbatim}
+fun filter p l =
+   foldr (fn (x,r) => if (p x) then x::r else r) [] l
+\end{verbatim}
+
+\begin{verbatim}
+(* all: ('a -> bool) -> 'a list -> bool *)
+fun all p [] = true
+  | all p (h::t) = 
+        p h andalso all p t
+\end{verbatim}
+
+\section{02 March - Post-Midterm}
+\subsection{Midterm review}
+\subsubsection{Question 1}
+Dot product of two vectors $a \dot b = \sum_{i=1}^n a_1 \times b_1$
+
+Use \verb~pair_foldr~ $ = f(x_n,y_n,f(x_{n-1},y_{n-1}, \ldots, f(x_1, y_1, init)) \ldots )$.
+
+\begin{verbatim}
+(* pair_foldr ('a * 'b *'c -> 'c) -> 'c -> ('a list * 'b list) -> 'c *)
+fun prod_vect v w =
+    pair_foldr (fn (a,b,c) => a*b + c)
+	      0 (v, w)
+\end{verbatim}
+
+\subsubsection{Question 2}
+Matrices question:
+
+\begin{verbatim}
+[ [ 1,3,-5],
+  [2, 0, 4]
+]
+\end{verbatim}
+
+\begin{verbatim}
+fun emptyMatrix B =
+    all (fn l => l = []) B
+
+(* multiply a vector times a matrix *)
+fun sm (v, B) = 
+if emptyMatrix B then []
+else let
+   val c = map (fn (x::xs) => x) B
+   val B' = map (fn (x::xs) => xs) B
+in
+   prod_vect (v,c)::sm(v,B')
+end
+\end{verbatim}
+
+\subsubsection{Question 3}
+Proofs question: similar structure to past proofs
+
+\subsubsection{Question 4}
+References question:
+
+\begin{verbatim}
+(* mon_ref: 'a -> (unit -> int) * (unit -> 'a) * ('a -> unit) *)
+fun mon_ref a = 
+let
+   val r = ref a
+   val c = ref 0
+in
+   (
+     (fn () => !c),
+     (fn () => (c := !c + 1; !r)),
+     (fn a => (c := !c + 1; r := a)
+   )
+end
+\end{verbatim}
+
+%% AFTER MIDTERM STUFF
+\section{05 March -- Post-Midterm Material}
+\subsection{Introduction to Language Design}
+
+Homework 4 will be handed out on Friday, 09 March, to be due two weeks from then.
+
+``A good designer must rely on experience, on precise, logical thinking, and on pedantic exactness. No magic will do." -- N. Worth
+
+\textbf{Goal:} a precise foundation for answering questions such as:
+\begin{itemize}
+    \item How will a program execute?
+    \item What is the meaning of a program?
+    \item What are legal expressions? \\
+            e.g. \verb~fun foo x x = x+2~ and \verb~foo 3 5~ returns 7 instead of 5
+    \item What concept of a variable do we have?
+    \item Where is a variable bound?
+    \item When is an expression well-typed?
+    \item Does every expression have a unique type?
+    \item What exactly is an expression? \\
+            Code -> Parser (syntax checker) -> Type Checker (static semantics) -> Interpreter (operational semantics)
+\end{itemize}
+
+In this class, we'll go through the different stages of running an ML program -- parsing, type checking, and interpreting. To ensure a language will produce ``correct" programs, we have to ensure that each of these stages produce correct results. 
+
+\subsection{Nano ML}
+We'll start with a small subset of ML. 
+
+\textbf{Definition:} the set of expressions is inductively defined as follows:
+\begin{enumerate}
+    \item A number is an expression.
+    \item The boolean \verb~true~ and \verb~false~ are expressions.
+    \item If \verb~e1~ and \verb~e2~ are expressions, then \verb~e1 op e2~ is an expression, where \verb~op~ $\in \{$ \verb~+, -, *, =, <~ $\}$.
+    \item If \verb~e0~, \verb~e1~ and \verb~e2~ are expressions, then \verb~if e0 then e1 else e2~ is an expression.
+\end{enumerate}
+
+A more compact way of defining expressions is the BNF grammar (Backus-Naur-Form):
+\begin{verbatim}
+Operator op := + | - | * | = | < | orelse
+Expression e := n | true | false | e1 op e2 | if e0 then e1 else e2
+Value v := n | true | false
+\end{verbatim}
+
+Examples of syntatically illegal expressions:
+\begin{itemize}
+    \item \verb~true false~
+    \item \verb~+3~
+    \item \verb~5-~
+\end{itemize}
+
+This does not type check, however -- for example, \verb~true + 3~ is syntactically legal but ill-typed.
+
+``An expression \verb~e~ evaluates to a value \verb~v~" is equivalent to a \emph{judgement} ``\verb~e~ $\Downarrow$ \verb~v~"
+
+An expression \verb~if e0 then e1 else e2~ evaluates to some value \verb~v~ if:
+\begin{enumerate}
+    \item \verb~e0~ evaluates to \verb~true~ and
+    \item \verb~e1~ evaluates to \verb~v~.
+\end{enumerate}
+
+This is equivalent to:
+\begin{verbatim}
+   premise1 .... premise2        ==     e0 evaluates to true    e1 evaluates to v
+   ______________________               ________________________________________
+        conclusion               ==       if e0 then e1 else e2 evaluates to v
+\end{verbatim}
+
+\section{07 March}
+\subsection{Language Design and Nano ML continued}
+
+Today we want to add variables and \verb~let~ expressions to our BNF grammar.
+
+\begin{verbatim}
+Expression e := n | true |false |
+                ... | x | let x = e in e' end
+\end{verbatim}
+
+\verb~x~ here represents a class of variables \verb~x,y,z,...~. For example:
+\begin{verbatim}
+let z = if true then 2
+                else 43
+in z + 123
+end;
+\end{verbatim}
+
+The following is not well-formed:
+\begin{verbatim}
+let z = 302
+in -z end;
+let x = 3 in x
+let x =3 x+2 end
+(* etc *)
+\end{verbatim}
+
+When is a variable bound? When is a variable free?
+
+\textbf{Free variables:} variables that are not bound. \verb~FV(e)~ is the set of free variable names. 
+\begin{itemize}
+    \item \verb~FV(n) = {}~ where \verb~n~ is a number.
+    \item \verb~FV(x) = {x}~
+    \item \verb~FV(e1 op e2) = FV(e1) U FV(e2)~
+    \item \verb~FV(let x = e1 in e2 end) = FV(e1) U F(e2) \ {x}~ \\
+        \verb~let x=5 in let y=x+2 in y+x end end~ \\
+        \verb~let x=x+2 in x+3 end~
+\end{itemize}
+
+Bound variable names don't matter -- \verb~let y=x+2 in y+3 end~.
+
+\subsection{Substitution:} 
+
+\begin{verbatim}
+e evalsto v0       [v / x] e' evalsto v
+---------------------------------------
+     let x=e in e' end evalsto v
+\end{verbatim}
+
+To evaluate \verb~let x=e in e' end~:
+\begin{enumerate}
+    \item Evaluate \verb~e~ to \verb~v0~.
+    \item Substitute \verb~v0~ for \verb~x~ in \verb~e'~.
+    \item Evaluate \verb~[v0/x]e'~ to \verb~v~.
+\end{enumerate}
+
+\textbf{Substitution:} \verb~[e/x]e' = e''~ -- in \verb~e'~, replace every free occurence of \verb~x~ with \verb~e~.
+
+Examples:
+\begin{itemize}
+    \item \verb~[e/x] n = n~
+    \item \verb~[e/x] x = e~
+    \item \verb~[e/x] y = y~
+    \item \verb~[e/x] (e1 op e2) = [e/x] e1 op [e/x] e2~
+    \item \verb~[e/x] (let y=e1 in e2 end) =~ \\
+        \verb~let y = [e/x] e1 in [e/x] e2 end~ \\
+        if \verb~y~ $\notin$ \verb~FV(e)~
+\end{itemize}
+
+A problem: free variables in \verb~e~ may be bound \verb~y~ (captured) if we don't guarantee that the free variables of \verb~e~ and the bound variable \verb~y~ don't clash or overlap. 
+
+Renaming is a special case of substitution -- \verb~[y1/y] e = e'~
+
+Our substitution has to be capture-avoiding.
+
+We can also add functions to our BNF grammar:
+\begin{verbatim}
+Expression e := ... | fn x => e
+\end{verbatim}
+
+\textbf{Substitution for (nameless) functions:} (MISSED)
+
+\textbf{Evaluating functions:} \verb~(fn x => e)~
+
+Functions are themselves values -- we can extend our values definition:
+\begin{verbatim}
+Values v := n | true | false | fn x => e
+\end{verbatim}
+
+\begin{verbatim}
+------------------------------
+(fn x => e) evalsto (fn x => e)
+
+e1 evalsto (fn x => e)    e2 evalsto v2    [v2/x] e evalsto v
+-------------------------------------------------------------
+                  e1 e2 evalsto v
+\end{verbatim}
+
+\section{09 March}
+\begin{enumerate}
+    \item Evaluating expressions (recursion)
+    \item Turing theory into code
+    \item Modules
+\end{enumerate}
+
+\subsection{Evaluation}
+\begin{verbatim}
+Expression e := ... | fn x => | e1 e2
+         | rec f => e
+Values v := ... | fn x => e
+\end{verbatim}
+
+Evaluation rules:
+\begin{verbatim}
+-------------------------------
+(fn x => e) evalsto (fn x => e)
+
+
+e1 evalsto (fn x => e)  e2 evalsto v2  [v2/x] e evalsto v
+---------------------------------------------------------
+                  e1 e2 evalsto v
+\end{verbatim}
+
+In SML, you might write:
+\begin{verbatim}
+fun f (x) = if x=0 then 0
+            else x + f (x-1)
+
+(* equivalent to in Nano ML *)
+rec f => fn x => if x=0 then 0
+                 else x + f (x-1)
+
+f 3
+=> if 3=0 then 0
+   else 3 + f (3-1)
+(* instead *)
+( rec f => fn x => if x=0 then 0
+         else x + f (x-1) ) 3
+
+(rec f => fn x => if x=0 then 0
+     else x + (rec f => fn x ....)) 3
+=> if 3=0 then 0
+   else 3 + (rec f => fn x ...) (3-1)
+=> ...
+
+[e'/x] (fn y => e) = fn y => [e'/x] e
+provided y is not in FV(e')
+
+[e'/x] (rec f => e) = rec f => [e'/x] e
+where f is not in FV(e)
+\end{verbatim}
+
+\subsection{Modules}
+ML: Core language and the Module Language
+
+Modules: two parts --  signature and structure
+
+\textbf{Signature:} interface of a structure
+
+\textbf{Structure:} program consisting of declarations
+
+When does a structure implement a signature?
+
+\verb~:>~ makes the implementation of the structure opaque. 
+
+A structure can provide more components, but it cannot have fewer. 
+
+Structures may provide more general types (e.g. using \verb~'a~ instead of \verb~int~).
+
+Structures may also implement concrete datatypes (e.g. in Queues, lists, etc.), but the signature keeps the type abstract. This is important for information hiding.
+
+The order of declarations does not matter.
+
+%%
+\section{12 March}
+\subsection{Types}
+
+Many ill-typed expressions will get ``stuck". For example:
+\begin{verbatim}
+if 0 then 3 else 3+2
+
+0+2
+
+(fn x => x+1) true
+\end{verbatim}
+
+Our evaluator will accept these expressions, but typing should rule out these ill-formed expressions. These should lead to run-time errors. Typing will ensure that we never evaluate these expressions.There will be fewer run-time errors as a consequence.
+
+Typing approximates what happens during run-time. Typing allows us to detect errors early and gives us precise error messages. As a consequence, programmers can spend more time developing and less time testing their programs. 
+
+When we type-check an expression, we prove the absense of certain program behaviors. 
+
+\textbf{Safety:} If a program is well-typed, then every intermediate state during evaluation is defined and well-typed. 
+
+\textbf{Types classify expressions according to their value.} If we know what values there are in a language, we know what types there are.
+
+Recall \verb~Values v := n | true | false~. So, for now:
+\begin{verbatim}
+Types T := int | bool
+\end{verbatim}
+
+The shorthand \verb~e : T~ can be read as ``expression \verb~e~ has type \verb~T~".
+
+\textbf{Axioms:}
+\begin{itemize}
+    \item \verb~n : int~
+    \item \verb~false : bool~
+    \item \verb~true : bool~
+\end{itemize}
+
+For \verb~if~-expression \verb~if e then e1 else e2~:
+\begin{itemize} 
+    \item \verb~e : bool~
+    \item \verb~e1 : T~
+    \item \verb~e2 : T~
+\end{itemize}
+We need to check that \verb~e1 : T~ and \verb~e2 : T~.
+
+\begin{verbatim}
+e1 : int  e2 : int
+-----------------
+  e1 + e2 : int
+
+e1 : T   e2 : T
+---------------
+ e1=e2 : bool
+\end{verbatim}
+
+We can add tuples to our expressions: \verb~Expressions e := ... | (e1, e2) | fst e | snd e~. We can then add tuples to possible values:
+\begin{verbatim}
+Values v := n | false | true | (v1, v2)
+Types T := int | bool | T1 x T2
+
+e1 : T1      e2 : T2
+--------------------
+ (e1, e2) : T1 x T2
+
+e   T1 x T2      (ditto)
+-----------   ------------
+fst e : T1     snd e : T2
+\end{verbatim}
+
+Now for let-expressions:
+\begin{verbatim}
+let x=5 in x+3 end : int
+as 5:int
+and (assuming x : int) x+3 : int
+\end{verbatim}
+
+Note that we need to reason about the type of variables.
+
+$\Gamma \vdash e : T$ reads ``Given assumtion $\Gamma$, expression \verb~e~ has type \verb~T~". I'm going to replace Gamma with \verb~G~ in any verbatim blocks.
+
+\begin{verbatim}
+Context G := | G1 x T
+
+G |- e : bool  G |- e1 : T  G |- e2 : T
+---------------------------------------
+  G |- if e then e1 else e2 : T
+
+G(x) = T
+-------
+G |- x : t
+
+G |- e1 : T1  G1 x: T1 |- e2 : T  |
+-------------------------------   } x is new
+G |- let x=e1 in e2 end : T       |
+\end{verbatim}
+
+Each assumption is unique implies that each variable has a unique type! We'll come back to let expressions with assumptions later.
+
+\begin{verbatim}
+              ...
+            ----------------
+            x:int |- x+2:int  x:int |-...
+            ------------------------------
+|- 5 : int  x : int |- let y ... end : int
+-----------------------------------------
+let x=5 in let y=x+2 in x+y end end : int
+
+Axioms:
+--------   -------------  ------------
+G|-n:int   G|-false:bool  G|-true:bool
+\end{verbatim}
+
+We can infer types:
+\begin{verbatim}
+G |- e : T
++    +   -
+\end{verbatim}
+
+Typing rules lend themselves to be interpreted as type-inference rules. They will infer a unique type.
+
+%%
+\section{14 March}
+\subsection{Typing rules continued}
+When is an expression well-typed?
+
+\begin{verbatim}
+e := n | true | false | e1 op e1
+   | if e then e1 else e1 | (e1, e2)
+   | x | let x=e in e' end
+T := int | bool | T1 x T2
+\end{verbatim}
+
+\verb~e : T~ = ``expression e has type T"
+
+
+\verb~G |- e : T~ = typing assumption about variables (e.g. Given assumptions in T, expression e has type T)
+
+\begin{verbatim}
+
+G|-e:T'         GxT'|-e':T
+--------------------------
+G |- let x=e in e' end : T
+
+
+           ------------ ------------
+           x:int|-x:int x:int|-3:int
+-------    ----------------------
+|-5:int         x:int|-x+3:int
+------------------------------
+    |- let x=5 in x+3 end
+\end{verbatim}
+
+For every expression, we can infer a type. Every expression has a unique type.
+
+\subsection{Extensions}
+Today we will look at extensions -- functions, applications, recursion, and references. 
+
+\begin{verbatim}
+T := ... | T1 -> T2
+V := ... | fn x => e
+\end{verbatim}
+
+\begin{verbatim}
+
+assume x:int, verify that if x=0 else x+2 has type int
+------------------------------------
+fn x => if x=0 then 4 else x+2 : int
+\end{verbatim}
+
+\begin{verbatim}
+(* this rule cannot be interpreted as inferring a type *)
+G1xT1|-e:T2
+-----------------------
+G|-fn x => e : T1 -> T2
+
+(* solution: annotate x with its type *)
+fn x : T1 => e
+
+fn x => if fst x=0 then snd x
+                   else 5
+         : int x int -> int
+\end{verbatim}
+
+Without type annotations, \verb~fn x => x~ has infinitely many types. With type annotations, we can infer a unique type.
+
+What is the most general type of an expression? \verb~'a~ ``principle type"
+
+Extremely important rule:
+\begin{verbatim}
+G|-e1:T1->T2  G|-e2:T1
+-------------------------
+G |- e1 e2 : T2
+\end{verbatim}
+
+New reference type:
+\begin{verbatim}
+T := ... | T1 ref | unit
+
+e := ... | !e | e := e' | ref e
+\end{verbatim}
+
+\begin{verbatim}
+G|-e : T ref
+------------
+G |- !e : T
+
+G|-e:T
+---------
+G |- ref e : ref T
+
+G|-e:T ref  G|-e':T
+-----------------
+G |- e := e' : unit
+
+G1 f:T |- e : T
+--------------------------
+G |- ref f => e : T
+
+
+(1)        (2)       sum: int->int, x:int |- sum(x-1)+x : int
+-----------------------------------------------------------------
+sum int->int, x:int |- if x=0 then 0 else sum(x-1) + x : int
+----------------------------------------------------------------
+sum int->int |- fn x => if x=0 then 0 else sum(x-1) + x : int->int
+----------------------------------------------------------------
+rec sum => fn x => if x=0 then 0 else sum (x-1) + x : int -> int
+\end{verbatim}
+
+
+\section{16 March}
+\subsection{Type inference and polymorphism}
+Can we infer a type for an expression?
+
+Recall that we needed type annotations on functions. \verb~fn x : int => x~
+
+Does an expression have a unique type? \verb~fn x => x~ could have the type \verb~int->int~ or \verb~bool->bool~, etc., however this function does have one principle type \verb~'a->'a~.
+
+\textbf{The question:} how can we infer the principle type of an expression \emph{without} given type annotations?
+
+Example:
+\begin{verbatim}
+double = fn f => fn x => f(f(x))
+: ('a -> 'a) -> 'a -> 'a
+\end{verbatim}
+
+Intuitively, we can now use this function in multiple ways.
+\begin{verbatim}
+double (fn x => x+2) 3 : int
+
+f        ( f        x )
+^          ^        ^
+'a->'b    'a->'b   'a
+              'b
+\end{verbatim}
+Because of this contradiction, we cannot pass a $\beta$ to a function which expects an $\alpha$.
+
+\begin{verbatim}
+double (fn x => x) false : bool
+\end{verbatim}
+
+\emph{Crucial in this:} type variables
+\begin{verbatim}
+T := int | bool | T1 x T2 | T1 -> T2 | 'a
+\end{verbatim}
+How do we instantiate type variables? Substitution!
+\begin{verbatim}
+[T/'a] (int) = int
+[T/'a] ('a) = T
+[T/'a] ('b) = 'b (where 'b != 'a)
+[T/'a] (T1 -> T2) = [T/'a] T1 -> [T/'a] T2
+\end{verbatim}
+
+\emph{Two views:}
+\begin{enumerate}
+    \item Are \emph{all} substitution instances of \verb~e~ well-typed? \\
+        If e has some type T and containts some type variables $\alpha_1, \ldots, \alpha_n$, then e has type \verb~[T1/'a1 ... Tn/'an] T~ for every $T_1, \ldots T_n$?
+    \item Does there exist some substitution instatnce such that e has type T?
+\end{enumerate}
+
+For example: \verb~fn x => x+1~ has type $\beta$? Choose for $\beta =$ \verb~int->int~.
+
+\verb~fn x => x~ has type $\beta$? Choose for $\beta=$\verb~int->int~ or \verb~bool->bool~ or, most generally, \verb~'a->'a~.
+
+Will \verb~fn x => x+1~ have type \verb~'b->bool~? No. there is instantatiation for \verb~'b~.
+
+\subsubsection{Type inference}
+\textbf{(1)} use typing rules to generate constraints. \textleftarrow will always succeed
+\textbf{(2)} solve constraints. \textleftarrow will sometimes fail
+
+What is a contstraint? For example, \verb~T=bool~.
+
+\begin{verbatim}
+Constraint C := T=T' | tt | C1 ^ C2
+\end{verbatim}
+
+How do we collect constraints? Informally, to infer a type for \verb~if e then e1 else e2~, we do the following:
+\begin{enumerate}
+    \item Infer a type $T$ for $e$ (and $C$).
+    \item Infer a type $T_1$ for $e_1$ (and $C_1$).
+    \item Infer a type $T_2$ for $e_2$ (and $C_2$).
+\end{enumerate}
+Constraints: \verb~T = bool ^ T1 = T2~.
+
+To infer a type for \verb~fn x => e~:
+\begin{enumerate}
+    \item Assume $x$ has type $\alpha_1$.
+    \item Infer a type $T_24$ (provided the constraints $C$ can be solved).
+    \item We then know that \verb~fn x => e~ has type \verb~'a1 -> T2~ (provided the constraints $C$).
+\end{enumerate}
+
+\verb~G |- e => T  C~ means ``given the assumptions $\Gamma$ for an expression $e$, the type $T$, and the constraints $C$", or ``the expression $e$ has type $T$ provided I can solve $C$".
+
+\subsubsection{Solving constraints}
+\begin{verbatim}
+G |- e => T/C   G |- e1 => T1/C1   G |- e2 => T2/C2
+----------------------------------------------------
+G |- if e then e1 else e2 => T2 / T=book ^ T1=t2 ^ C ^ C1 ^ C2
+
+G1 x:'a1 |- e => T2/C
+-------------------------
+G |- fn x => e => a1 -> T2 / C
+
+input: left of =>
+output: right of =>
+x:'a1 means 'a1 is new
+
+fn x => if 3=1 then 55 else x : 'a1 ->
+assuming x:'a1
+constraint: int = 'a1 ^ bool=bool
+\end{verbatim}
+
+Solving the constraints, we learn that \verb~'a1 = int~, and therefore
+\begin{verbatim}
+fn x => if 3=1 then 55 else x : int->int
+\end{verbatim}
+
+\begin{verbatim}
+------------------
+G |- n => int / tt
+
+----------------------
+G |- true => bool / tt
+
+G(x) = T
+----------------
+G |- x => T / tt
+\end{verbatim}
+
+%%
+\section{19 March}
+Some small mistakes on HW4 -- see WebCT for more details.
+
+\subsection{Type inference}
+Examples:
+\begin{verbatim}
+fn f => fn x => f (x) + 1
+    : 'a1 -> 'a2 -> int
+f: 'a1, x: 'a2 |- f(x) + 1 : int
+f(x) : int
+'a1 = 'a2 -> int
+.: the type of the fn is ('a2->int) -> 'a2 -> int
+    as f : 'a2->int
+\end{verbatim}
+
+A slightly more complicated example:
+\begin{verbatim}
+fn f => fn g => fn x => f( g x) + g x
+    : 'a1 -> 'a2 -> 'a3 -> int
+f: 'a1, g: 'a2, x: 'a3 |- f(g(x)) + g(x) : int
+
+Constraints to solve:
+'a2 = 'a3 -> int (from last g(x))
+'a2 = 'a3 -> 'a4 (from first g(x))
+'a1 = 'a4 -> int
+'a2 = 'a3 -> 'a4, 'a2 = 'a3 -> int (intutitively)
+'a1 = 'a4 -> int
+.: 'a4 = int, 'a1 = int -> int
+No constraint on 'a3
+
+.: the type we infer is:
+    (int -> int) -> ('a3->int) -> 'a3 -> int
+         f               g         x
+\end{verbatim}
+
+Third example:
+\begin{verbatim}
+fn f => fn x => f x + x f
+
+f: 'a1, x: 'a2 |- f x + x f
+'a1 = 'a2 -> int
+'a2 = 'a1 -> int
+
+'a1 = ('a1 -> int) -> int
+
+Does there exist an insubstantiation for 'a1 such that
+    'a1 = ('a1 -> int) -> int ?
+There is no solution to make both sides equal.
+Reason: variable on the LHS occurs embedded on the RHS (circular).
+\end{verbatim}
+
+\subsection{Unification Algorithm}
+Input: set of constraints
+
+Question: Does there exist an insubstatiation such that all constraints are true?
+
+\verb~C := tt | C1 ^ C2 | T = T'~
+
+\verb~C =====> C'~ until we reach our goal where \verb~C =>* tt~.
+
+\begin{verbatim}
+C ^ tt => C
+C ^ int = int => C
+C ^ bool = bool => C
+C ^ T1->T2 = S1->S2 => C ^ T1=S2 ^ T2=S2
+C ^ 'a = T => [T/'a] C (provided 'a is not in FV(T)) (occurs check -- prevents circular terms)
+C ^ T = 'a => [T/'a] C (same provisions)
+\end{verbatim}
+
+\begin{verbatim}
+unify (T1, T2) =
+    (* pattern match on T1, T2 *)
+    (* return bool *)
+\end{verbatim}
+
+\subsection{Examples (part 2)}
+\begin{verbatim}
+double = fn f => fn x => f (f x)
+    : 'a1 -> 'a2 -> 'a3
+f:'a1, x:'a2 |- f (fx) : 'a3
+inter (f x) ---> 'a1 = 'a2 -> 'a4
+outer f (f x) -> 'a1 = 'a4 -> 'a3
+'a4 -> 'a3 => 'a2 -> 'a1
+'a4 = 'a2, 'a3 = 'a4
+.: 'a2 = 'a3 = 'a4
+.: we infer:
+    ('a2 -> 'a2) -> 'a2 -> 'a2
+
+double (fn x => x+1) 5;
+double (fn x => x) true;
+
+let
+    d = fn f => fn x => f (f x)
+    x = d (fn x => x+1) 5
+    y = d (fn x => x ) true
+in
+    (y, x)
+end
+(* this will typecheck in SML, but would not type check in our definition so far,
+ * as we don't have a way to reuse a function with different types as we've 
+ * given it a type. SML will abstract over polymorphic type variables, i.e.
+ * it can reuse the type over multiple types by saying "forall 'a2:('a2->'a2)->'a2->'a"
+ *)
+\end{verbatim}
+
+\section{21 March}
+\subsection{Type inference continued}
+\subsubsection{Warm-up examples}
+
+\textbf{Example 1:}
+\begin{verbatim}
+fn f => fn g => fn x => if gx then f(g x) else f(f(g x))
+
+f : 'a1, g : 'a2, x : 'a3 |- if (g x) then f(g x) else f(f(g x)) : 'a4
+
+'a1 -> 'a2 -> 'a3 -> 'a4
+\end{verbatim}
+
+We are looking for instantiations for \verb~'a1, 'a2, 'a3, 'a4~ such that the expression is well-typed.
+
+\begin{verbatim}
+(g x) == 'a2 = 'a3 -> bool
+f(g x) == 'a1 = bool -> 'a4
+f(f(g x)) == 'a1 = 'a4 -> 'a4
+.: 'a4 = bool
+\end{verbatim}
+
+This given function will have type \verb~(bool->bool)->('a3->bool)->'a3->bool~.
+
+\textbf{Example 2:}
+\begin{verbatim}
+fn f => if f true then f 5 else f 4
+
+f:'a1 |- if f true then f 5 else f 4 : 'a2
+
+f true == 'a1 = bool -> bool
+f 5, f 4 == 'a1 = int -> 'a2
+
+bool->bool != int -> 'a2
+(* won't type check? *)
+
+(* in SML *)
+let val f = fn x => x
+in if (f true) then (f 5) else (f 4)
+end
+(* will type int -- why? *)
+\end{verbatim}
+
+In our algorithm:
+\begin{verbatim}
+f : 'a -> 'a |- if (f true) then f 5 else f 4
+(f true) == 'a -> 'a = bool -> bool
+f 4 == 'a -> 'a = int -> int
+f 5 == ""
+
+'a = int
+'a = bool
+\end{verbatim}
+
+Our algorithm does not do what SML does -- it cannot truly reuse \verb~f~ in multiple ways.
+
+To make this function type check in our language, we'll need different copies of \verb~f~.
+
+\textbf{Observation:} \verb~if (fn x => x) true~ \verb~then (fn x => x) 5 then~ \verb~(fn x => x) 4~ will type check -- each ``sub-function" will be assigned its own relevant type. By writing this function three times, we will type check it three times, however we will have no contraints to carry over, so our language will type check this correctly.
+
+\subsubsection{Modifying our typing rules}
+As a solution to this problem, we can modify our old rule, which is not suitable to handle polymorphic functions. Our new rule is as follows:
+
+\begin{verbatim}
+
+G|-[e1/x]e2 : T
+-----------------------
+G |- let x=e1 in e2 : T
+\end{verbatim}
+
+Note: type checks $e_1$ multiple times -- not very efficient, but at least this will work for polymorphism. In practical languages, this is not what happens. Instead, we'll need to make the assumption $\forall \alpha -> \alpha$, so whenever we look up the type of \verb~f~, we get a ``fresh", unique copy of its type. 
+
+In ML:
+(generalize -- abstract over the free variables and quanitify over them, so we can reuse them as often as we'd like)
+\begin{verbatim}
+G|- e1 : S   G1 x generalize(S) |- e2 : T
+-----------------------------------------
+G |- let x=e1 in e2 : T
+\end{verbatim}
+
+In example 2, \verb~(forall 'a, 'a -> 'a) -> int~ -- full polymorphism. In ML, we have parametric polymporphism, where all quantification over type variables is at the outside. Some languages are slowly moving towards allowing full polymorphism.
+
+\subsubsection{More examples}
+\begin{verbatim}
+let val r = ref (fn x => x)
+in r := (fn x => x+1); !r true
+end
+\end{verbatim}
+
+In SML, this will not type check; however, from the rules we have, it will.
+\begin{verbatim}
+ref (fn x => x) == ('a -> 'a) ref
+ref (fn x => x) := (fn x => x+1); (ref (fn x => x))! true
+'a = int
+then
+'a = bool
+
+"happy" but WRONG
+\end{verbatim}
+In general, we can reuse functions and values in a polymorphic way, but we cannot make any general polymorphic assumptions about expressions which are not values! Recall that references are not values, so we cannot make any general polymorphic assumptions about references. 
+
+This is called \emph{value restriction} -- we can only reuse values in a polymorphic way. If something is not a value, we cannot make any polymorphic assumptions about it, since there can be side effects and such.
+
+\begin{verbatim}
+let val r = ref (fn x => x)
+in r
+end
+
+(* SML *)
+Warning : type variables are not generalized because of value restriction are instantiated with dummy types:  ?X1->?X1 ref
+\end{verbatim}
+
+%%
+\section{23 March}
+HW 5 out -- due 11 April, 2012
+
+\subsection{Bi-directional type checking}
+So far, we have type inference rules. 
+
+\textbf{Hindley-Milner} (type inference) -- \emph{Goal:} infer the most general type of an expression without declaring any types.
+
+\textbf{Disadantages of not writing type annotations:}
+\begin{itemize}
+    \item Gives better error messages (programmer communicates his or her intent)
+    \item High-grade (high-quality) documentation -- does not get out of sync with the code
+    \item I can refuse types to force programs to be used in a specific way
+    \item Hindley-Milner type inference does not scale to richer types such as subtyping, full polymorphism, and dependent types. 
+    \item Hindley-Milner type inference is complicated and difficult to implement (unification is needed).
+\end{itemize}
+
+Basic idea behind bi-directional type checking -- instead of infering a type:
+    \[
+        \Gamma \vbar e \Rightarrow \tau
+    \]
+$\forall e$ where $\tau$ is the output, we'll use two judgements (functions), ``check" and ``synthesize". First, check $\Gamma \vbar e \Leftarrow \tau$ for inputs $\Gamma, e, \tau$ (check that expression $e$ has type $\tau$ under the assumptions $\Gamma$). Then, synthesize $\Gamma \vbar e \Rightarrow \tau$ (synthesize a type $\tau$ for expression $e$ under the assumptions $\Gamma$ for \emph{some} $e$). Synthesize basically means infer.
+
+This algorithm is based on two observations. First, we can't use information that we don't have. Second, we should try to use information that we do have. 
+
+Type variables:
+\[
+    \infer{\Gamma_i x : \tau \vbar x => \tau}{}
+\]
+
+Functions
+\[
+    \infer{\Gamma \vbar \verb~fn x => e~ \Rightarrow \tau_1 \rightarrow \tau_2}{
+        \tau_i x : \tau_1 \vbar e \Leftarrow \tau_2
+    }
+\]
+
+\[
+    \infer{\Gamma \vbar e_1 e_2}{
+        \Gamma \vbar e_1 \Rightarrow \tau_2 \rightarrow \tau
+        &
+        \Gamma \vbar e_2 \Leftarrow \tau_2
+    }
+\]
+
+Example:
+\begin{verbatim}
+twice: (int -> int) -> int -> int)
+    |- (twice (fn x => x+1)) 3
+        ----
+        ^ infer type (int->int)->int->int
+.: int
+\end{verbatim}
+
+Conversion:
+\[
+    \infer{\Gamma \vbar e \Leftarrow \tau}{
+        \Gamma \vbar e \Rightarrow \tau^{\prime}
+        &
+        \tau^{\prime} = \tau
+    }
+\]
+
+Example:
+\[
+    \infer[by conversion]{\vbar 3 \Leftarrow \verb~int~}{
+        \vbar 3 \Rightarrow \verb~int~
+        &
+        \verb~int = int~
+    }
+\]
+
+\end{document}
