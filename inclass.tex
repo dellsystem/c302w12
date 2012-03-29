@@ -1527,4 +1527,173 @@ Example:
     }
 \]
 
+%%
+\section{26 March}
+\subsection{Subtyping}
+\begin{verbatim}
+fun area r = 3.14 * r * r
+
+area : real -> real
+area 2 (* type error *)
+\end{verbatim}
+
+We want to pass an int whenever a real is required (int $\leq$ real)
+
+\emph{Subtyping principle:} S $<$ T. S is a subtype of T if we can provide a value of type S whenever a value of T is required.
+
+\[
+    \infer{\Gamma \vdash e : T}{
+        \Gamma \vdash e : S
+        &
+        S \leq T
+    }
+\]
+
+\[
+    \infer{T \leq S}{
+        T \leq R
+        &
+        R \leq S
+    }
+\]
+
+\[
+    \infer[covariant]{T_1 \times T_2 \leq S_1 \times S_2}{
+        T_1 \leq S_1
+        &
+        T_2 \leq S_2
+    }
+\]
+
+Records are a generalization of tuples (n-ary tuples where each element has a label).
+\[
+    \infer[depth \; subtyping]{\{x_1 : T_1, \dots, x_n : T_1 \} \leq \{ x_1 : S_1, \dots, x_n : S_1 \} }{
+        \forall i \; T_i \leq s_1
+    }
+\]
+
+Two things we want for records:
+\begin{enumerate}
+    \item Permutations of elements should be allowed! \\
+        \[
+            \infer{ \{ x_1 : T_1, \dots, x_n : T_n\} \leq \{ x_{\phi(1)} : T_{\phi(1)}, \dots, x_{\phi(n)} : T_{\phi(n)} \} }{
+                \phi \textnormal{ is a permutation}
+            }
+        \]
+        
+\end{enumerate}
+
+(MISSED FROM FAR BOARD)
+
+\[
+    \infer{\{x_1 : T_1, \dots, x_k : T_k\} < \{x_1 : T_1, \dots, x_n : T_n\}}{
+        k > n
+    }
+\]
+
+\subsubsection{Function example}
+\begin{verbatim}
+let
+    (* areaSqr: real -> real *)
+    fun areaSqr (r : real) = r*r
+    (* areaFake: real -> int *)
+    fun areaFake (r : real) = 3
+in
+    areaSqr 2.2 + 3.2
+end
+\end{verbatim}
+
+\textbf{Question:} Can we provide \verb~areaFake: real -> int~ whenever \verb~areaSqr: real -> real~ is required? YES, but not in SML -- our discussion of subtyping is purely theoretical.
+
+Therefore,
+\[
+    \infer{T \rightarrow T_2 \leq T \rightarrow S_2}{T_2 \leq S_2}
+\]
+
+%%
+\section{28 March}
+\subsection{Subtyping continued}
+\subsubsection{Review}
+Basic subtyping principle: $S \leq T$ ``S is a subtype of T" if we can provide a value of type S whenever a value of type T is required. 
+
+Products: covariant \verb~int * real <= real * real~ \verb~real * int <= real * real~
+
+Functions: contravariant \verb~int -> int <= int -> real~ as \verb~int <= real~ and functions are co-variant in the output type.
+
+\verb~real -> int <= int -> int~ as \verb~int <= real~ and functions are contra-variant in the input type.
+
+Invalid: \verb~int -> int !<= real -> real~
+
+\[
+    \infer{T_1 \rightarrow T_2 \leq S_1 \rightarrow S_2}{
+        S_1 \leq T_1
+        &
+        T_2 \leq S_2
+    }
+\]
+
+\subsubsection{References}
+\begin{verbatim}
+let
+    val x = ref 2.0
+    val y = ref 3
+in
+    !x + 3.14
+end
+\end{verbatim}
+This is a perfectly valid program, as \verb~x : real ref~ and \verb~y : int ref~. Can we supply an \verb~int ref~ (e.g. \verb~y~) whenever a \verb~real ref~ is required? YES (but, again, not in SML).
+
+\[
+    \infer{\verb~S ref~ \leq \verb~T ref~}{ S \leq T }
+\]
+
+\begin{verbatim}
+let
+    val x = ref 2.0
+    val y = ref 2
+in
+    y := 4 
+end
+\end{verbatim}
+
+Should we be able to supply a \verb~real ref~ (e.g. \verb~x~) whenever an \verb~int ref~ is required? YES. This seems almost contractitory, since we said yes to the previous question. The following rule seems incompatible to the one before:
+
+\[
+    \infer{\verb~S ref~ \leq \verb~T ref~}{T \leq S}
+\]
+
+Therefore, there is \emph{no subtyping} on references (locations) -- references are \emph{invariant}.
+\[
+    \infer{\verb~S ref~ \leq \verb~T ref~}{
+        S \leq T
+        &
+        T \leq S
+    }
+\]
+Of course, if $S \leq T$ and $T \leq S$, then $S = T$.
+
+\subsubsection{More subtyping}
+Recall the typing rule for subtyping:
+\[
+    \infer{\Gamma \vdash e : T}{
+        \Gamma \vdash e : S
+        &
+        S \leq T
+    }
+\] 
+Upcasting is always safe with type annotations -- it is safe to ``forget"!
+\[
+    \infer[Upcast]{\Gamma \vdash (T) e : T}{
+        \Gamma \vdash e : S
+        &
+        S \leq T
+     }
+\]
+Below, there can be no relationship between S and T. This is not really safe in general. Most often, S is a supertype of T. You must trust that this is safe in order to use it.
+\[
+    \infer{\Gamma \vdash (T) e : T}{ \Gamma \vdash e : S}
+\]
+E.g. \verb~fn (x:real) => (int) x + 1~ downcasts \verb~x~ to an \verb~int~.
+
+
 \end{document}
