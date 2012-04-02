@@ -1656,7 +1656,7 @@ in
 end
 \end{verbatim}
 
-Should we be able to supply a \verb~real ref~ (e.g. \verb~x~) whenever an \verb~int ref~ is required? YES. This seems almost contractitory, since we said yes to the previous question. The following rule seems incompatible to the one before:
+Should we be able to supply a \verb~real ref~ (e.g. \verb~x~) whenever an \verb~int ref~ is required? YES. This seems almost contradictory, since we said yes to the previous question. The following rule seems incompatible to the one before:
 
 \[
     \infer{\verb~S ref~ \leq \verb~T ref~}{T \leq S}
@@ -1695,5 +1695,133 @@ Below, there can be no relationship between S and T. This is not really safe in 
 \]
 E.g. \verb~fn (x:real) => (int) x + 1~ downcasts \verb~x~ to an \verb~int~.
 
+%%
+\section{30 March}
+\subsection{Dependent types}
+\begin{verbatim}
+fun append [] l = l
+  | append (h::t) l = h::(append t l)
+
+(* append: 'a list -> 'a list -> 'a list *)
+\end{verbatim}
+What else do we know?
+
+\begin{verbatim}
+length (append l1 l2) = length l1 + length l2
+\end{verbatim}
+
+How can types track information about the length of lists? Index a type by an object/expression which stands for an integer. 
+\begin{verbatim}
+for all n : int, for all m : int:
+list 'a n -> list 'a m -> list 'a (plus n m)
+\end{verbatim}
+
+Agda (a dependently typed functional language), DML (Dependent ML), Omega, Epigram, Coq, ...
+
+Staring with simple types in Agda:
+\begin{verbatim}
+data Nat : Set where
+     zero : Nat
+     succ : Nat -> Nat
+data Bool : Set where
+     true : Bool
+     false : Bool
+
+data List (A : Set) : Set where
+     [] : List A
+     _::_ : A -> List A -> List A
+\end{verbatim}
+
+In Agda, we have to explicitly declare the type of a program:
+\begin{verbatim}
+plus : Nat -> Nat -> Nat
+plus zero m = m
+plus (succ n) m = succ (plus n m)
+
+rev_tl : {A : Set} -> List A -> List A -> List A
+rev_tl [] acc = acc
+rev_tl (h::t) acc = rev_tl t (h::acc)
+\end{verbatim}
+
+The \verb~{A : Set}~ clause is read as ``for all \verb~A~".
+
+Dependent types:
+Index a boolean list with its length
+\begin{verbatim}
+    data BoolList : Nat -> Set where
+         nil : BoolList zero
+         cons : {n : Nat} -> Bool -> BoolList n -> BoolList (succ n)
+    
+    append : {n : Nat} -> {m : Nat} -> 
+        BoolList n -> BoolList m -> BoolList (plus n m)
+    append nil l = l
+    append (cons h t) l = cons h (append t l)
+\end{verbatim} 
+Surprisingly, the program didn't change at all! However, the type checker in Agda will do a lot more work for you than it did in SML, as our type declaration is much, much richer in our Agda code.
+
+Type checker's tasks:
+\begin{verbatim}
+(1) l : BoolList m |- l : BoolList (plus n m)
+\end{verbatim}
+We need to prove that \verb~BoolList m = BoolList (plus zero m)~. Show that \verb~plus zero m => m~.
+
+To check that two types are equal means we need to show that the index arguments are equal. This is based on evaluation!
+\[
+    \infer{\verb~BoolList m = BoolList m'~}{ m \Rightarrow m^{\prime}}
+\]
+
+Agda works with total functions only -- i.e. those that are defined to work with all possible inputs. This way, the functions are provably terminating.
+
+%%
+\section{02 April}
+\subsection{Dependent Types continued}
+\begin{verbatim}
+    cons: {n : Nat} -> Bool -> BoolList n -> BoolList (succ n)
+\end{verbatim}
+
+For our append method (from Friday), consider the base case to be case 1 and the induction case to be step 2. To check case 1, can we show that \verb~BoolList m = BoolList (plus zero m)~? \verb~BoolList m~ is the inferred type for \verb~l~ and the RHS is the expected type. Because \verb~plus zero m => m~, we know that the two types are equal. 
+
+For case 2, we know \verb~cons h t : BoolList (succ n')~, and therefore \verb~t : BoolList n'~. \verb~append t l : BoolList (plus n' m)~, so \verb~cons h (append t l) : BoolList (succ (plus n' m))~.
+
+Expected type: \verb~BoolList (plus (succ n') m)~, because \verb~plus (succ n') m => suc (plus n' m)~, so we know that the two types are equal.
+
+Vectors: polymorphic lists
+\begin{verbatim}
+    data Vec (A : Set) : Nat -> Set where
+         [] : Vec A zero
+         _::_ : {n : Nat} -> A -> Vec A n -> Vec A (succ n)
+
+    (* by using (succ n), we're prevented from ever getting a list of length zero *)
+    vhead : {A : Set} -> {n : Nat} -> Vec A (succ n) -> A
+    vhead h::t = h
+\end{verbatim}
+Note that there is no case necessary for the empty list, so this \verb~vhead~ function is total.
+
+\begin{verbatim}
+    vtail : {A : Set} -> {n : Nat} -> Vec A (succ n) -> Vec A n
+    vtail h::t = t
+
+    vmap : {A : Set} -> {B : set} -> {n : Nat} ->
+        (A -> B) -> Vec A n -> Vec B n
+    vmap f [] = []
+    vmap f (h :: t) = (f h)::(vmap f t)
+
+    vzip : {A : Set} -> {B : Set} -> {n : Nat} ->
+        Vec A n -> Vec B n -> Vec (A * B) n
+    vzip [] [] = []
+    vzip (x::xs) (y::xs) = (x,y)::(vzip xs ys)
+\end{verbatim}
+
+We'd also like to have a safe look-up function of the $k$th element in a vector:
+\begin{verbatim}
+    data _ <= _ : Nat -> Nat -> Set where
+         leq_zero : {n : Nat} -> zero <= n
+         leq_succ : {n,m : Nat} -> n <= m -> succ n <= succ m
+
+    kth : {A : Set} -> {n : Nat} -> {k : Nat} -> k <= n -> Vec A (succ n) -> a
+    kth zero leq_zero (x::xs) = x
+    kth (succ k) (leq_succ p) (x::xs) = 
+        kth k p xs
+\end{verbatim}
 
 \end{document}
