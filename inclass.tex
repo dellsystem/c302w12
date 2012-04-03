@@ -16,32 +16,299 @@
 \begin{document}
 \maketitle
 
+\section{09 January} % (fold)
+\subsection{Introduction to Functional Programming in Standard ML}
+\subsubsection{What are types?}
+Types classify terms (expressions) according to the properties of values.
 
+\begin{verbatim}
+    4 : int
+    ~1 : int
+    3+2 : int
+    5 div 2 : int
+    3.0 : real
+    3.0/4.2 : real
+    3.0 + 4.2 : real
+\end{verbatim}
+
+Here, notice that \verb~+~ is an overloaded operator that works with both ints and reals. The division operator is not, however, so SML will make a distinction between \verb~div~ for integer division and \verb~/~ for real division.
+
+We cannot mix types in SML, e.g. \verb~3.2 + 1~ will return a type error.
+
+\begin{verbatim}
+    "abc" : string
+    #"a" : character
+\end{verbatim}
+
+Types are a \emph{static} approximation of the run-time behaviour of the program -- type checking is done \emph{before} execution.
+
+If statements must have a boolean as the guard, then two possible branches \emph{of the same type}. However, the type checker is not ``smart".
+
+\begin{verbatim}
+    if true then 3.0 else 4.2 : real
+    if false then 4 else 1 div 0 : int (* again, type checker is not smart *)
+    if false then 1 else 2.0 (* type error - branches do not agree on a type *)
+\end{verbatim}
+
+\section{11 January} % (fold)
+\subsection{Bindings and scope of variables and functions}
+\verb~val pi = 3.14~
+
+\textbf{Binding:} variable name paired with a value.
+
+Local bindings:
+\begin{verbatim}
+    let
+        val m = 3
+        val n = m*m     (* n=9 *)
+        val k = m*m     (* k=9 *)
+    in
+        k*n             (* 81 *)
+    end;
+\end{verbatim}
+
+In the above example, \verb!m,n,k! disappear after the \verb~end~ keyword. Notice that SML uses bindings, not assignments, so there exist some overshadowing issues to keep in mind:
+\begin{verbatim}
+    val k = 4
+    let
+        val k = 3
+    in
+        k*k         (* final value is 9, not 16 *)
+    end
+    k               (* returns 4*)
+\end{verbatim}
+
+\subsection{Functions}
+Functions in SML (and all functional languages, by definition) are \emph{values}.
+\begin{verbatim}
+    (* area : real -> real *)
+    val area = fun r => pi * r * r
+    (* or, equivalently and more compactly: *)
+    fun area r = pi * r * r
+    (* to explicitly restrict a type: *)
+    fun sqr (x : real) = x * x
+    (* using one parameter *)
+    fun add (x : real, y : real) = x + y
+\end{verbatim}
+Functions use the values of the most recent binding of the variables within themselves. For example:
+\begin{verbatim}
+    val a2 = area (2.0)     (* 12.56 *)
+    val pi= 6.0
+    val a3 = area (2.0)     (* still 12.56 *)
+\end{verbatim}
+In order to update functions, you must re-declare the function to overshadow the previous binding.
+
+The structure of the input of functions is important!
+\begin{verbatim}
+    (* add : int -> int -> int *)
+    add (x : int) (y : int) = x + y
+    (* add' : (int * int) -> int *)
+    add' (x : int, y : int) = x + y
+\end{verbatim}
+
+\subsection{Recursion in SML}
+\begin{verbatim}
+    exception Domain;
+    fun fact n =
+        let
+            fun fact' 0 = 1
+              | fact' n = n * fact' (n-1)
+        in
+            if n >= 0 then
+               fact' n
+            else
+               raise Domain
+        end
+\end{verbatim}
+
+Note that the above method is nowhere near the most efficient way of expression the factorial function, but it works as an example of recursion in this case.
+
+\section{13 Jan} % (fold)
+\subsection{Data types}
+We can define our own datatypes using the \verb!datatype! keyword:
+\begin{verbatim}
+    datatype Suit = Hearts | Diamonds | Spades | Clubs
+    (* dom : suit * suit -> bool, where spades > hearts > diamonds > clubs *)
+    fun dom (Spades, _) = true
+      | dom (_, Clubs) = true
+      | dom (Hearts, Diamonds) = true
+      | dom (S1, S2) = (S1 = S2)
+\end{verbatim}
+SML will warn you if your pattern-matching does not cover all possible cases.
+
+\begin{verbatim}
+    datatype rank = Ace | King | Queen | Jack | Ten | ...
+    type card = rank * suit     
+    (* instead of declaring a tuple every time, we can use this "abbreviation" *)
+    val c0 = (Queen, Hearts)
+\end{verbatim}
+
+The above are examples of finite data types. What about infinite data types?
+
+Mathematically, a hand can be either empty, or, if $C$ is a card and $H$ is a hand, \verb!Hand(C,H)! (this is an example of a constructor).
+
+\begin{verbatim}
+    datatype hand = Empty | Hand of Card * Hand
+    val h0 = Empty
+    val h1 = Hand (c0, h0)
+    val h2 = Hand ((King, Clubs), h1)
+    
+    (* count : hand -> int *)
+    fun count Empty = 0
+      | count (Hand (_, h)) = 1 + count h
+\end{verbatim}
+
+\subsubsection{Lists in SML}
+Lists are an example of an incredibly useful datatype found in SML's base language.
+
+A list is either empty (nil) or, if $A$ is an element and $C$ is a list, \verb!Cons(A,L)!.
+
+Note here that \verb!'a! (pronounced ``alpha", for $\alpha$) is a type variable for all possible types. This allows us to create polymorphic data types.
+\begin{verbatim}
+    datatype 'a list = Nil | Cons of 'a * 'a list
+    val l1 = Cons (1, Nil)      (* : int list  *)
+    val l2 = Cons (Queen, Nil)  (* : rank list *)
+\end{verbatim}
+
+Lists are already defined in SML with a convenient syntax:
+\begin{verbatim}
+    nil         (* empty list *)
+    [] = nil
+    _::_        (* infix/cons operator *)
+    1::nil, 1::2::3::[]
+\end{verbatim}
+
+All elements of a list must be of the same type. You can get around this by defining a new data type with the option of storing multiple values, if need be.
+
+\section{16 January} % (fold)
+\subsection{Datatypes continued}
+\begin{verbatim}
+    datatype 'a option = None | Some of 'a
+    (* hd : 'a list -> 'a option *)
+    fun hd (h::_) = Some h
+      | hd [] = None
+    
+    (* naive append function *)
+    (* app: ('a list * 'a list) -> 'a list *)
+    fun app ([], l2) = l2
+      | app (h::t, l2) = h::(app (t,l2))
+    (* @ is the built-in append operator in SML *)
+    
+    (* rev : 'a list -> 'a list *)
+    fun rev [] = []
+      | rev (h::t) = (rev t) @ [h]
+    (* this is O(n^2) in time because of the append operator *)
+    
+    (* using tail-recursion in O(n) time*)
+    fun rev_tl l =
+        let
+            fun rev ([], acc) = acc
+              | rev (h::t, acc) = rev(t, h::acc)
+        in
+            rev (l,[])
+        end
+\end{verbatim}
+
+A binary tree is either empty or, if L and R are binary trees and v is a value of type $\alpha$, \verb!Node(v,L,R)!. Nothing else is binary tree.
+
+\begin{verbatim}
+    datatype 'a tree = Empty | Node of 'a * 'a tree * 'a tree
+    
+    (* size : 'a tree -> int *)
+    fun size Empty = 0
+      | size (Node(_, L, R)) = size L + size R + 1
+    (* insert: (int * 'a) -> (int * 'a) tree -> (int * 'a) tree *)
+    fun insert e Empty = Node(e, Empty, Empty)
+      | insert ((x,d) as e)(Node((y,d'),L,R)) =
+            if x=y then Node(e,L,R)
+            else
+                if x<y then Node((y,d'), (insert e L), R)
+                else Node((y,d'), L, (insert e R))
+\end{verbatim}
+
+\section{18 \& 20 January} % (fold)
+\subsection{Mathematical Induction}
+See induction pdf.
+
+\section{23 January} % (fold)
+\subsection{Higher-Order Functions}
+Functions as values -- can pass to functions or return as results! This allows us to create modular, reusable code.
+
+\begin{verbatim}
+    fun sumInts  (a,b) = if a>b then 0 else a       + sumInts  (a+1,b)
+    fun sumSqrs  (a,b) = if a>b then 0 else (a*a)   + sumSq    (a+1,b)
+    fun sumCubes (a,b) = if a>b then 0 else (a*a*a) + sumCubes (a+1,b)
+    (* etc. *)
+\end{verbatim}
+The above code is not very clean or reusable -- what if we wanted to sum the powers of 100? We want to abstract what we're doing.
+
+\begin{verbatim}
+    (* sum : (int -> int) * int * int -> int *)
+    sum (f,a,b) = if a > b then 0
+                  else (f a) + (sum (f,a+1,b))
+    
+    fun sq x = x*x
+    fun sumSq (a,b) = sum (sq, a, b)
+    fun id x = x
+    fun sumInts (a,b) = sum (id, a, b)
+\end{verbatim}
+It's a bit silly to give all these functions names, so we can define functions ``on the fly" without giving them names:
+
+\begin{verbatim}
+    fun sumInts (a,b) = sum ((fn x => x), a, b)
+    val id = (fn x => x)
+    fun sumSq (a,b) = sum ((fun x => x*x), a, b)
+\end{verbatim}
+
+Our only real restriction on anonymous functions is that they cannot be recursive, since you need to give names to recursive functions to call them.
+
+\begin{verbatim}
+    fun inc [] = Empty
+      | inc (h::t) = (h+1)::(inc t)
+    (* What if we wanted to multiply each element? Square each element? *)
+    
+    fun map f [] = []
+      | map f (h::t) = (f h)::(map f t)
+    
+    (* filter out all elements which are, say, even *)
+    fun filterEven [] = Empty
+      | filterEven (h::t) = if h mod 2 = 0 then h::filterEven t else filterEven t
+    
+    (* filter : ('a -> bool) -> 'a list -> 'a list *)
+    fun filter f [] = []
+      | filter f (h::t) = if f h then h::filter t else filter t
+\end{verbatim}
+
+\section{25 \& 30 January} % (fold)
+These two lectures were taught by a TA, and cover higher-order functions, currying, and staging evaluation. The material can be found in the relevant pdf's.
+
+
+\pagebreak
 \section{03 February}
 % Continuations
-\subsection*{Regular Expression Matching}
+\subsection{Regular Expression Matching}
 
 Typical patterns:
 \begin{itemize}
-	\item Singleton: matching a specific character
-	\item Alternation: choice between two patterns
-	\item Concatenation: succession of patterns
-	\item Iteration: repeat a certain pattern (indefinite)
+    \item Singleton: matching a specific character
+    \item Alternation: choice between two patterns
+    \item Concatenation: succession of patterns
+    \item Iteration: repeat a certain pattern (indefinite)
 \end{itemize}
 
 Regular expressions;
 \begin{itemize}
-	\item 0 and 1 are regular expressions.
-	\item If $a \in \Sigma$ where $\Sigma$ is an alphabet, then $a$ is a regular expression.
-	\item If $r_1$ and $r_2$ are regular expressions, then $r_1 + r_2$ (choice) and $r_{1}r_{2}$ (concatenation) are regular expressions.
-	\item If r is a regular expression, then $r^*$ is a regular expression (repetition).
+    \item 0 and 1 are regular expressions.
+    \item If $a \in \Sigma$ where $\Sigma$ is an alphabet, then $a$ is a regular expression.
+    \item If $r_1$ and $r_2$ are regular expressions, then $r_1 + r_2$ (choice) and $r_{1}r_{2}$ (concatenation) are regular expressions.
+    \item If r is a regular expression, then $r^*$ is a regular expression (repetition).
 \end{itemize}
 
 Examples;
 \begin{itemize}
-	\item \verb~a(p*)l(e+y)~ matches against ``apple", ``apply", ``ale"
-	\item \verb~g(1+r)(e+a)y~ matches against ``grey", ``gray", ``gey", ``gay" (\verb~1~ means you can either have something there or not)
-	\item \verb~g(1+o)*gle~ matches ``google", ``ggle"
+    \item \verb~a(p*)l(e+y)~ matches against ``apple", ``apply", ``ale"
+    \item \verb~g(1+r)(e+a)y~ matches against ``grey", ``gray", ``gey", ``gay" (\verb~1~ means you can either have something there or not)
+    \item \verb~g(1+o)*gle~ matches ``google", ``ggle"
 \end{itemize}
 
 Our goal is to implement a regex matcher in SML.
@@ -61,7 +328,7 @@ s matches r1r2
 s matches r*
   iff either s is empty
           or s = s1s2 where s1 matches r
-		                and s2 matches r*
+                        and s2 matches r*
 \end{verbatim}
 
 Remember that continuations tell us what to do once an initial segment of the input \verb~char list~ has been matched.
@@ -87,8 +354,8 @@ fun acc (Char c) [] cont = false
   | acc (Star r) s cont = 
         (* remove (1*) case - s must shrink *)
         (cont s) orelse
-		      acc r s (fn s' => not (s = s') orelse 
-			                        acc (Star r) s' cont)
+              acc r s (fn s' => not (s = s') orelse 
+                                    acc (Star r) s' cont)
 
 \end{verbatim}
 
@@ -137,7 +404,7 @@ exception Error of int;
 
 fun fact n =
     let fun fact' n =
-	        if n = 0 then 1
+            if n = 0 then 1
     else n * fact'(n-1)
     in
         if n < 0 then raise Error 00
@@ -207,8 +474,8 @@ Recall the binding/scope rules from the beginning of the class:
 let 
     val pi = 3.14
     val area = fn r => pi * r * r
-	val a2 = area 2.0 (*a2 = 12.56 *)
-	val pi = 6.0
+    val a2 = area 2.0 (*a2 = 12.56 *)
+    val pi = 6.0
 in
     area (2.0) (* a2 = 12.56 *)
 end;
@@ -219,16 +486,16 @@ Today we will look at references, which are a form of mutable storage. Reference
 
 Commands:
 \begin{itemize}
-	\item Initialize a cell in memory \\
-			\verb~val r : int ref = ref 0~ where \verb~r~ is the name of the cell and \verb~0~ is the content of the cell \\
-			\verb~val s : int ref = ref 0~ where \verb~s~ and \verb~r~ do not point to the same cell in memory
-	\item Read what is stored in a cell \\
-			\verb~val x = !r~ will read from location \verb~r~ the value \verb~0~ \\
-			\verb~r : int ref~ and \verb~!r : int~
-	\item Write some value into a cell (i.e update the content) \\
-			\verb~r := 5 + 3~ where \verb~r : int ref~ and \verb~5+3 : int~ \\
-			Previous content of cell \verb~r~ is erased when we store \verb~8~. \\
-		    Evaluating \verb~r:=3~ returns \verb~unit~ and as an effect updates the content of the cell with \verb~3~.
+    \item Initialize a cell in memory \\
+            \verb~val r : int ref = ref 0~ where \verb~r~ is the name of the cell and \verb~0~ is the content of the cell \\
+            \verb~val s : int ref = ref 0~ where \verb~s~ and \verb~r~ do not point to the same cell in memory
+    \item Read what is stored in a cell \\
+            \verb~val x = !r~ will read from location \verb~r~ the value \verb~0~ \\
+            \verb~r : int ref~ and \verb~!r : int~
+    \item Write some value into a cell (i.e update the content) \\
+            \verb~r := 5 + 3~ where \verb~r : int ref~ and \verb~5+3 : int~ \\
+            Previous content of cell \verb~r~ is erased when we store \verb~8~. \\
+            Evaluating \verb~r:=3~ returns \verb~unit~ and as an effect updates the content of the cell with \verb~3~.
 \end{itemize}
 
 \verb~val x = !s + !r~ binds \verb~x~ to \verb~3~.
@@ -297,13 +564,13 @@ We can use this to create a counter program:
 \begin{verbatim}
 fun newCounter () =
     let
-	   val counter = ref 0
-	   fun tick () = counter := !counter + 1
-	   fun reset () = counter := 0
-	   fun read () = !counter
+       val counter = ref 0
+       fun tick () = counter := !counter + 1
+       fun reset () = counter := 0
+       fun read () = !counter
     in
-	   {tick = tick; reset = reset; read = read}
-	end
+       {tick = tick; reset = reset; read = read}
+    end
 
 val c1 = newCounter (); 
 val c2 = newCounter ();
@@ -325,10 +592,10 @@ So far, evaluation is driven by substitution. We substitute the value of \verb~x
 
 We have three different kinds of bindings we'd like to track using the environment diagram. A binding is an association between a variable and a value.
 \begin{enumerate}
-	\item \verb~val x = 3+2~ creates a ``box" with the variable name \verb~x~ and its value \verb~5~.
-	\item \verb~val x = ref (8+2)~ creates a box with the variable name and a location pointing to another box with the value \verb~10~.
-	\item \verb~val f = fn x => x + 3~ creates a box with the function name and a location pointing to a box with the input and the function body, where this box points back to the original box. \\
-		\verb~val f = let val y = 8+2 in fn y => y + x end~ adds another box (an extra step) with the local body.
+    \item \verb~val x = 3+2~ creates a ``box" with the variable name \verb~x~ and its value \verb~5~.
+    \item \verb~val x = ref (8+2)~ creates a box with the variable name and a location pointing to another box with the value \verb~10~.
+    \item \verb~val f = fn x => x + 3~ creates a box with the function name and a location pointing to a box with the input and the function body, where this box points back to the original box. \\
+        \verb~val f = let val y = 8+2 in fn y => y + x end~ adds another box (an extra step) with the local body.
 \end{enumerate}
 
 \section{13 February}
@@ -378,7 +645,7 @@ in force x + force x end
 val memo = ref None
 val x = Susp (fun () => case memo of None =>
     let val y = horribleComp(522) in memo := (*MISSED*) end
-	| Some y => y
+    | Some y => y
 
 (* infinite stream of 'a *)
 datatype 'a stream' = Cons of 'a * 'a stream
@@ -476,7 +743,7 @@ fun filter (p, s) = filter' (p, foce s)
 (* filter': ('a -> bool) * 'a stream' -> 'a stream *)
 and filter' (p, (Cons(x,xs))) = 
     if p x then
-	   Susp(fn () => Cons (x, filter (p,xs)))
+       Susp(fn () => Cons (x, filter (p,xs)))
     else
        filter (p, xs)
 \end{verbatim}
@@ -601,7 +868,7 @@ Use \verb~pair_foldr~ $ = f(x_n,y_n,f(x_{n-1},y_{n-1}, \ldots, f(x_1, y_1, init)
 (* pair_foldr ('a * 'b *'c -> 'c) -> 'c -> ('a list * 'b list) -> 'c *)
 fun prod_vect v w =
     pair_foldr (fn (a,b,c) => a*b + c)
-	      0 (v, w)
+          0 (v, w)
 \end{verbatim}
 
 \subsubsection{Question 2}
