@@ -121,7 +121,7 @@ The structure of the input of functions is important!
         end
 \end{verbatim}
 
-Note that the above method is nowhere near the most efficient way of expression the factorial function, but it works as an example of recursion in this case.
+Note that the above method is nowhere near the most efficient way of expressing the factorial function, but it works as an example of recursion in this case.
 
 \section{13 Jan} % (fold)
 \subsection{Data types}
@@ -209,7 +209,7 @@ All elements of a list must be of the same type. You can get around this by defi
         end
 \end{verbatim}
 
-A binary tree is either empty or, if L and R are binary trees and v is a value of type $\alpha$, \verb!Node(v,L,R)!. Nothing else is binary tree.
+A binary tree is either empty or, if L and R are binary trees and v is a value of type $\alpha$, \verb!Node(v,L,R)!. Nothing else is a binary tree.
 
 \begin{verbatim}
     datatype 'a tree = Empty | Node of 'a * 'a tree * 'a tree
@@ -634,7 +634,7 @@ Now we can use lazy evaluation with the \verb~horribleComp~ example.
 
 \begin{verbatim}
 (* original *)
-let val x = horribleCom(522)
+let val x = horribleComp(522)
 in x+x end
 
 (* call-by-name model *)
@@ -1171,11 +1171,11 @@ if 0 then 3 else 3+2
 (fn x => x+1) true
 \end{verbatim}
 
-Our evaluator will accept these expressions, but typing should rule out these ill-formed expressions. These should lead to run-time errors. Typing will ensure that we never evaluate these expressions.There will be fewer run-time errors as a consequence.
+Our evaluator will accept these expressions, but typing should rule out these ill-formed expressions. These should lead to run-time errors. Typing will ensure that we never evaluate these expressions. There will be fewer run-time errors as a consequence.
 
 Typing approximates what happens during run-time. Typing allows us to detect errors early and gives us precise error messages. As a consequence, programmers can spend more time developing and less time testing their programs. 
 
-When we type-check an expression, we prove the absense of certain program behaviors. 
+When we type-check an expression, we prove the absence of certain program behaviors.
 
 \textbf{Safety:} If a program is well-typed, then every intermediate state during evaluation is defined and well-typed. 
 
