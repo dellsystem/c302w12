@@ -1027,8 +1027,8 @@ When is a variable bound? When is a variable free?
 \begin{itemize}
     \item \verb~FV(n) = {}~ where \verb~n~ is a number.
     \item \verb~FV(x) = {x}~
-    \item \verb~FV(e1 op e2) = FV(e1) U FV(e2)~
-    \item \verb~FV(let x = e1 in e2 end) = FV(e1) U F(e2) \ {x}~ \\
+    \item \verb~FV(e1 op e2) = FV(e1)~ $\cup$ \verb~FV(e2)~
+    \item \verb~FV(let x = e1 in e2 end) = FV(e1)~ $\cup$ \verb~F(e2) \ {x}~ \\
         \verb~let x=5 in let y=x+2 in y+x end end~ \\
         \verb~let x=x+2 in x+3 end~
 \end{itemize}
