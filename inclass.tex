@@ -533,13 +533,13 @@ type 'a reflist = ('a rlist) ref;
 (* rapp: 'a reflist * 'a reflist -> unit *)
 (* returns unit as all we're doing is updating space in memory *)
 fun rapp (r1 as ref Empty, r2) = r1 := !r2
-  | rapp (ref (RCons (x,t)), r2) = rapp t r2
+  | rapp (ref (RCons (x,t)), r2) = rapp (t, r2)
 \end{verbatim}
 Now we can check this with some examples:
 \begin{verbatim}
 val rlist1 = ref (RCons(1,ref Empty))
 val rlist2 = ref (RCons(2,ref Empty))
-rapp rlist1 rlist2
+rapp (rlist1, rlist2)
 \end{verbatim}
 
 
