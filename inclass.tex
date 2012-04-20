@@ -1413,7 +1413,7 @@ Recall that we needed type annotations on functions. \verb~fn x : int => x~
 
 Does an expression have a unique type? \verb~fn x => x~ could have the type \verb~int->int~ or \verb~bool->bool~, etc., however this function does have one principle type \verb~'a->'a~.
 
-\textbf{The question:} how can we infer the principle type of an expression \emph{without} given type annotations?
+\textbf{The question:} how can we infer the principle type of an expression \emph{without} being given type annotations?
 
 Example:
 \begin{verbatim}
