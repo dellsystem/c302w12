@@ -1590,7 +1590,8 @@ C ^ tt => C
 C ^ int = int => C
 C ^ bool = bool => C
 C ^ T1->T2 = S1->S2 => C ^ T1=S2 ^ T2=S2
-C ^ 'a = T => [T/'a] C (provided 'a is not in FV(T)) (occurs check -- prevents circular terms)
+C ^ 'a = T => [T/'a] C (provided 'a is not in FV(T))
+    (occurs check -- prevents circular terms)
 C ^ T = 'a => [T/'a] C (same provisions)
 \end{verbatim}
 
@@ -1739,7 +1740,8 @@ in r
 end
 
 (* SML *)
-Warning : type variables are not generalized because of value restriction are instantiated with dummy types:  ?X1->?X1 ref
+Warning : type variables are not generalized because of value restriction
+are instantiated with dummy types:  ?X1->?X1 ref
 \end{verbatim}
 
 %%
