@@ -1459,7 +1459,7 @@ For example: \verb~fn x => x+1~ has type $\beta$? Choose for $\beta =$ \verb~int
 
 \verb~fn x => x~ has type $\beta$? Choose for $\beta=$\verb~int->int~ or \verb~bool->bool~ or, most generally, \verb~'a->'a~.
 
-Will \verb~fn x => x+1~ have type \verb~'b->bool~? No. there is instantiation for \verb~'b~.
+Will \verb~fn x => x+1~ have type \verb~'b->bool~? No, there is no instantiation for \verb~'b~.
 
 \subsubsection{Type inference}
 \textbf{(1)} use typing rules to generate constraints. \textleftarrow will always succeed
